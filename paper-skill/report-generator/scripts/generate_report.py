@@ -96,6 +96,17 @@ class PDFReportGenerator:
         ))
 
         styles.add(ParagraphStyle(
+            name='CustomHeading3',
+            parent=styles['Heading2'],
+            fontSize=12,
+            textColor=colors.HexColor('#34495E'),
+            spaceAfter=8,
+            spaceBefore=12,
+            fontName='Helvetica-Bold',
+            alignment=TA_LEFT
+        ))
+
+        styles.add(ParagraphStyle(
             name='CustomBody',
             parent=styles['BodyText'],
             fontSize=11,
@@ -268,7 +279,7 @@ class PDFReportGenerator:
             self.story.append(Spacer(1, 0.5*cm))
 
     def _add_analysis_section(self):
-        """Add research trend analysis section."""
+        """Add enhanced research trend and gap analysis section."""
         if not REPORTLAB_AVAILABLE:
             return
 
@@ -277,14 +288,235 @@ class PDFReportGenerator:
 
         papers = self.input_data.get('papers', [])
 
-        # Year distribution analysis
+        if not papers:
+            self.story.append(Paragraph("No papers available for analysis.", self.styles['CustomBody']))
+            return
+
+        # 导入增强分析模块
+        try:
+            from enhanced_analysis import ResearchAnalyzer
+            analyzer = ResearchAnalyzer()
+            enhanced_analysis = True
+        except ImportError:
+            enhanced_analysis = False
+            print("Warning: Enhanced analysis module not available. Using basic analysis.", file=sys.stderr)
+
+        # ==================== 第一部分：研究趋势分析 ====================
+        self.story.append(Paragraph("Part 1: Research Trends", self.styles['CustomHeading2']))
+
+        # 1. 年度发文量趋势
         year_counts = {}
         for paper in papers:
             year = paper.get('year') or (paper.get('published', '')[:4] if paper.get('published') else 'Unknown')
             if year and year != 'Unknown':
                 year_counts[year] = year_counts.get(year, 0) + 1
 
+        # 1.1 数据源分布
+        source_counts = {}
+        for paper in papers:
+            source = paper.get('source', 'Unknown')
+            source_counts[source] = source_counts.get(source, 0) + 1
+
         if year_counts:
+            self.story.append(Paragraph("Publication Year Trend", self.styles['CustomHeading3']))
+
+            year_data = [["<b>Year</b>", "<b>Papers</b>", "<b>Trend</b>"]]
+            sorted_years = sorted(year_counts.keys(), reverse=True)
+            for i, year in enumerate(sorted_years):
+                count = year_counts[year]
+                # 计算趋势
+                if i < len(sorted_years) - 1:
+                    prev_count = year_counts[sorted_years[i + 1]]
+                    if count > prev_count * 1.2:
+                        trend = "📈"
+                    elif count < prev_count * 0.8:
+                        trend = "📉"
+                    else:
+                        trend = "➡️"
+                else:
+                    trend = ""
+
+                year_data.append([year, str(count), trend])
+
+            year_table = Table(year_data, colWidths=[4*cm, 4*cm, 2*cm])
+            year_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ]))
+
+            self.story.append(year_table)
+            self.story.append(Spacer(1, 1*cm))
+
+            # 年份范围
+            year_range = f"{min(year_counts.keys())}-{max(year_counts.keys())}"
+            self.story.append(Paragraph(f"Analysis Period: {year_range}", self.styles['CustomBody']))
+
+        # 2. 研究热点（高频关键词）
+        if enhanced_analysis:
+            trends = analyzer.analyze_research_trends(papers)
+            hot_topics = trends.get('hot_topics', [])[:10]
+
+            if hot_topics:
+                self.story.append(Paragraph("Research Hotspots", self.styles['CustomHeading3']))
+
+                topic_data = [["<b>Rank</b>", "<b>Keyword</b>", "<b>Frequency</b>"]]
+                for i, topic in enumerate(hot_topics[:10], 1):
+                    topic_data.append([str(i), topic['keyword'], str(topic['frequency'])])
+
+                topic_table = Table(topic_data, colWidths=[1*cm, 6*cm, 3*cm])
+                topic_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ]))
+
+                self.story.append(topic_table)
+                self.story.append(Spacer(1, 1*cm))
+
+                # 趋势洞察
+                trend_insights = trends.get('trend_insights', [])
+                if trend_insights:
+                    self.story.append(Paragraph("Key Insights", self.styles['CustomHeading3']))
+                    for insight in trend_insights:
+                        self.story.append(Paragraph(f"• {insight}", self.styles['CustomBody']))
+                    self.story.append(Spacer(1, 0.5*cm))
+
+        # 3. 引用量分析
+        if enhanced_analysis:
+            citation_analysis = trends.get('citation_analysis', {})
+            if citation_analysis and citation_analysis.get('total_papers_with_citations', 0) > 0:
+                self.story.append(Paragraph("Citation Impact Analysis", self.styles['CustomHeading3']))
+
+                avg_citations = citation_analysis.get('average_citations', 0)
+                max_citations = citation_analysis.get('max_citations', 0)
+
+                impact_data = [
+                    ["<b>Metric</b>", "<b>Value</b>"],
+                    ["Average Citations", f"{avg_citations:.1f}"],
+                    ["Max Citations", str(max_citations)],
+                    ["High Impact Papers (100+)", str(citation_analysis.get('impact_ranges', {}).get('high_impact', 0))],
+                    ["Moderate Impact (50-99)", str(citation_analysis.get('impact_ranges', {}).get('moderate_impact', 0))],
+                    ["Emerging (1-49)", str(citation_analysis.get('impact_ranges', {}).get('emerging', 0))]
+                ]
+
+                impact_table = Table(impact_data, colWidths=[4*cm, 4*cm])
+                impact_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ]))
+
+                self.story.append(impact_table)
+                self.story.append(Spacer(1, 1*cm))
+
+        # ==================== 第二部分：研究缺口分析 ====================
+        self.story.append(PageBreak())
+        self.story.append(Paragraph("Part 2: Research Gaps & Opportunities", self.styles['CustomHeading1']))
+
+        if enhanced_analysis:
+            gaps = analyzer.analyze_research_gaps(papers)
+
+            # 时间缺口
+            time_gaps = gaps.get('time_gaps', [])
+            if time_gaps:
+                self.story.append(Paragraph("Time Gaps (Under-represented Years)", self.styles['CustomHeading2']))
+
+                gap_data = [["<b>Year</b>", "<b>Papers</b>", "<b>Gap Analysis</b>"]]
+                for gap in time_gaps[:5]:
+                    gap_data.append([
+                        gap['year'],
+                        str(gap['count']),
+                        f"{gap['percentage_below_average']} below average"
+                    ])
+
+                gap_table = Table(gap_data, colWidths=[3*cm, 3*cm, 5*cm])
+                gap_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ]))
+
+                self.story.append(gap_table)
+                self.story.append(Spacer(1, 1*cm))
+
+            # 主题缺口
+            topic_gaps = gaps.get('topic_gaps', [])
+            if topic_gaps:
+                self.story.append(Paragraph("Topic Gaps (Under-represented Directions)", self.styles['CustomHeading2']))
+
+                topic_data = [["<b>Topic</b>", "<b>Papers</b>", "<b>Opportunity</b>"]]
+                for gap in topic_gaps[:5]:
+                    topic_data.append([
+                        gap['topic'],
+                        str(gap['count']),
+                        gap['opportunity_level'].capitalize()
+                    ])
+
+                topic_table = Table(topic_data, colWidths=[5*cm, 3*cm, 3*cm])
+                topic_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ]))
+
+                self.story.append(topic_table)
+                self.story.append(Spacer(1, 1*cm))
+
+            # 方法缺口
+            method_gaps = gaps.get('method_gaps', [])
+            if method_gaps:
+                self.story.append(Paragraph("Method Gaps (Under-utilized Methods)", self.styles['CustomHeading2']))
+
+                method_data = [["<b>Method</b>", "<b>Papers</b>", "<b>Opportunity</b>"]]
+                for gap in method_gaps[:5]:
+                    method_data.append([
+                        gap['method'].title(),
+                        str(gap['count']),
+                        gap['opportunity'].capitalize()
+                    ])
+
+                method_table = Table(method_data, colWidths=[5*cm, 3*cm, 3*cm])
+                method_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ]))
+
+                self.story.append(method_table)
+                self.story.append(Spacer(1, 1*cm))
+
+            # 跨学科机会
+            interdisciplinary_opportunities = gaps.get('interdisciplinary_opportunities', [])
+            if interdisciplinary_opportunities:
+                self.story.append(Paragraph("Interdisciplinary Opportunities", self.styles['CustomHeading2']))
+
+                for opportunity in interdisciplinary_opportunities[:5]:
+                    self.story.append(Paragraph(f"• {opportunity}", self.styles['CustomBody']))
+
+                self.story.append(Spacer(1, 1*cm))
+
+            # 综合缺口洞察
+            gap_insights = gaps.get('gap_insights', [])
+            if gap_insights:
+                self.story.append(Paragraph("Gap Insights", self.styles['CustomHeading3']))
+                for insight in gap_insights:
+                    self.story.append(Paragraph(f"• {insight}", self.styles['CustomBody']))
+
+        else:
+            # 基础分析（如果没有增强模块）
             self.story.append(Paragraph("Publication Year Distribution", self.styles['CustomHeading2']))
 
             year_data = [["<b>Year</b>", "<b>Papers</b>"]]
@@ -303,33 +535,8 @@ class PDFReportGenerator:
             self.story.append(year_table)
             self.story.append(Spacer(1, 1*cm))
 
-        # Source distribution analysis
-        source_counts = {}
-        for paper in papers:
-            source = paper.get('source', 'Unknown')
-            source_counts[source] = source_counts.get(source, 0) + 1
-
-        if source_counts:
-            self.story.append(Paragraph("Data Source Distribution", self.styles['CustomHeading2']))
-
-            source_data = [["<b>Source</b>", "<b>Papers</b>"]]
-            for source, count in sorted(source_counts.items(), key=lambda x: x[1], reverse=True):
-                source_data.append([source, str(count)])
-
-            source_table = Table(source_data, colWidths=[6*cm, 4*cm])
-            source_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F8D')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ]))
-
-            self.story.append(source_table)
-            self.story.append(Spacer(1, 1*cm))
-
-        # Research insights
-        self.story.append(Paragraph("Research Insights", self.styles['CustomHeading2']))
+        # 基础研究洞察
+        self.story.append(Paragraph("Research Insights", self.styles['CustomHeading3']))
 
         insights = []
         if len(papers) > 0:
@@ -337,6 +544,9 @@ class PDFReportGenerator:
             if year_counts:
                 latest_year = max(year_counts.keys())
                 insights.append(f"• Most recent publications from {latest_year}.")
+                if len(year_counts) > 1:
+                    years = sorted(year_counts.keys(), reverse=True)[:2]
+                    insights.append(f"• Research spans {years[-1]} to {years[0]}.")
             if source_counts:
                 top_source = max(source_counts, key=source_counts.get)
                 insights.append(f"• Primary data source: {top_source} ({source_counts[top_source]} papers).")
@@ -533,7 +743,7 @@ Examples:
         generator = PDFReportGenerator(input_data)
         success = generator.generate(args.output)
         if success:
-            print(f"✅ PDF report generated successfully: {args.output}")
+            print(f"[OK] PDF report generated successfully: {args.output}")
             return 0
         else:
             print("❌ Failed to generate PDF report", file=sys.stderr)
@@ -541,7 +751,7 @@ Examples:
     else:  # markdown
         success = generate_markdown_report(input_data, args.output)
         if success:
-            print(f"✅ Markdown report generated successfully: {args.output}")
+            print(f"[OK] Markdown report generated successfully: {args.output}")
             return 0
         else:
             print("❌ Failed to generate Markdown report", file=sys.stderr)

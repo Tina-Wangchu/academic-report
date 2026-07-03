@@ -14,6 +14,8 @@
 ### ⭐ **Key Features**
 
 - 🔍 **Multi-Source Paper Search** - Retrieve academic papers from Semantic Scholar, arXiv, and CrossRef
+- ⭐ **Quality-Based Paper Selection** - AI-powered quality scoring system returns most impactful and representative research
+- 🔄 **Incremental Weekly Reports** - Smart state management ensures only NEW papers since last report
 - 📄 **Professional PDF Reports** - Generate formatted academic reports with cover pages, analysis, and references
 - 📧 **Automated Email Delivery** - Send reports via email with support for multiple providers (Gmail, QQ Mail, etc.)
 - 🤖 **User-Centric Interaction** - Built-in user constraint protection principles
@@ -60,6 +62,136 @@ Hermes Agent:
 
 ---
 
+## 🌟 **Advanced Features**
+
+### **Quality-Based Paper Selection** ⭐
+
+**Problem Solved**: Traditional paper search returns ALL papers, including low-quality or duplicate research.
+
+**Our Solution**: Multi-dimensional quality scoring system (100-point scale) + intelligent representative selection.
+
+#### **Quality Scoring Dimensions**
+
+| Dimension | Points | Description |
+|-----------|--------|-------------|
+| **Citations** | 30 | Citation count (500+ = high impact) |
+| **Venue Quality** | 25 | Journal/conference tier (Nature/NeurIPS = top tier) |
+| **Author Reputation** | 20 | Notable researchers (Hinton/LeCun/Bengio) |
+| **Innovation** | 15 | Breakthrough keywords in abstract |
+| **Recency** | 10 | Latest research bonus (within 1 month) |
+
+#### **Representative Selection**
+
+- **Topic Clustering** - Groups similar papers using Jaccard similarity
+- **Diversity Guarantee** - Selects best paper from each cluster
+- **Avoids Duplication** - No more 10 papers on "transformer improvements"
+
+#### **Usage**
+
+```bash
+# Enable quality filtering
+python paper_search.py \
+  --topic "machine learning" \
+  --time-range 1y \
+  --max-results 10 \
+  --enable-quality-filter
+```
+
+**Output**:
+```
+✓ Found 8,234 papers (after filtering)
+✓ Selected top 10 most representative papers
+✓ Quality scores: 92, 88, 85, 82, 78, 75, 72, 70, 68, 65
+
+📊 Quality Distribution:
+- 90-100: 2 papers (tier-1 research)
+- 80-89: 3 papers (excellent)
+- 70-79: 3 papers (good)
+- 60-69: 2 papers (acceptable)
+
+🎯 Representative Topics:
+- Deep Learning Theory (3 papers)
+- Computer Vision (2 papers)
+- NLP (2 papers)
+- Reinforcement Learning (2 papers)
+- Bayesian Methods (1 paper)
+```
+
+---
+
+### **Incremental Weekly Reports** 🔄
+
+**Problem Solved**: Weekly reports often contain duplicate papers from previous weeks.
+
+**Our Solution**: State management + incremental search ensures ONLY new papers since last report.
+
+#### **How It Works**
+
+```
+Week 1 Report (July 1):
+├─ Retrieves papers from: 2025-06-24 to 2025-07-01
+├─ Returns: 45 papers
+└─ State initialized ✓
+
+Week 2 Report (July 8):
+├─ Retrieves papers from: 2025-07-01 to 2025-07-08
+├─ Filter out: 7 papers already sent in Week 1
+├─ Returns: 38 NEW papers
+└─ State updated ✓
+
+Week 3 Report (July 15):
+├─ Retrieves papers from: 2025-07-08 to 2025-07-15
+├─ Filter out: 5 papers from Week 1 & 2
+├─ Returns: 42 NEW papers
+└─ State updated ✓
+```
+
+#### **Key Features**
+
+- **Smart State Tracking** - Records last report time and sent paper IDs
+- **Automatic Deduplication** - Never sends the same paper twice
+- **Persistent Storage** - JSON-based state file survives restarts
+- **User Isolation** - Each user has independent report history
+
+#### **Usage Example**
+
+```python
+from incremental_search import search_incremental
+
+# Week 1: Initialize
+result = search_incremental(
+    topic="artificial intelligence",
+    user_id="your@email.com",
+    time_range="7d",
+    max_results=10
+)
+# → Returns: 45 papers
+# → Note: "First report - state initialized"
+
+# Week 2: Incremental mode (same command)
+result = search_incremental(
+    topic="artificial intelligence",
+    user_id="your@email.com",
+    time_range="7d",
+    max_results=10
+)
+# → Returns: 38 NEW papers
+# → Note: "Showing new papers since 2025-07-01"
+# → Note: "(7 duplicates filtered)"
+
+# Week 3: Continue incremental mode
+# → Only returns papers from Week 2 onwards
+```
+
+#### **Benefits**
+
+- ✅ **Zero Duplication** - Never receive the same paper twice
+- ✅ **Fresh Content Only** - Each week contains truly NEW research
+- ✅ **Time Saving** - Don't waste time reviewing papers you've already seen
+- ✅ **Complete Coverage** - Still captures all new research automatically
+
+---
+
 ## 📁 **Repository Structure**
 
 ```
@@ -81,7 +213,11 @@ agent-scholar/
 │   ├── paper-search/                 # Academic paper search
 │   │   ├── SKILL.md
 │   │   └── scripts/
-│   │       └── paper_search.py       # Multi-source paper search engine
+│   │       ├── paper_search.py       # Multi-source paper search engine
+│   │       ├── quality_scorer.py      # NEW: Quality scoring system (100-point scale)
+│   │       ├── representative_selector.py  # NEW: Representative paper selection
+│   │       ├── report_state_manager.py    # NEW: Weekly report state tracking
+│   │       └── incremental_search.py     # NEW: Incremental paper search
 │   │
 │   └── report-generator/             # PDF report generation
 │       ├── SKILL.md
@@ -267,6 +403,70 @@ You: "检索统计决策理论的最新研究"
 Hermes: ✅ Using domain-optimized search (statistics)
        ✅ Prioritizing CrossRef (best for statistics journals)
        ✅ Found 8 papers from top statistics venues
+```
+
+### **Example 4: Quality-Filtered Search (NEW ⭐)**
+
+```
+You: "搜索机器学习在医疗领域的最新突破性研究，只要最精华的10篇"
+
+Hermes: ✅ Retrieved 200 papers from APIs (Semantic Scholar, arXiv, CrossRef)
+       ✅ After date filtering (2025-07-03 to 2026-07-03): 187 papers
+       ✅ Applied quality scoring system (multi-dimensional):
+          - Citation count (30 points)
+          - Venue quality (25 points)
+          - Author reputation (20 points)
+          - Innovation score (15 points)
+          - Recency bonus (10 points)
+       ✅ Selected top 10 most representative papers
+       ✓ Avoided duplicates (7 similar papers grouped into 3 clusters)
+
+Quality Scores:
+  - 92 points: "Deep Learning for Medical Diagnosis" (Nature, 250+ citations)
+  - 88 points: "Bayesian Methods for ML" (JASA, 180 citations)
+  - 85 points: "Neural Network Interpretability" (NeurIPS, 150 citations)
+  ...
+
+[BENEFITS]
+- No more 10 papers on "similar transformer improvements"
+- Focus on breakthrough research, not incremental updates
+- Guaranteed diversity across subtopics
+```
+
+### **Example 5: Incremental Weekly Report (NEW 🔄)**
+
+```
+You: "每周一早上8点自动发送AI领域的最新研究报告"
+
+Week 1 (July 1, 8:00 AM):
+Hermes: ✅ First report initialized
+       ✅ Retrieved: 45 papers (June 24 - July 1, 2026)
+       ✅ All papers are NEW
+       ✅ State saved: Last report = July 1, 2026 8:00 AM
+       ✅ Report sent via email
+
+Week 2 (July 8, 8:00 AM):
+Hermes: ✅ Incremental mode activated
+       ✅ Retrieved: 43 papers (July 1 - July 8, 2026)
+       ✅ Filtered: 7 duplicates (already sent in Week 1)
+       ✅ Returns: 36 NEW papers
+       ✅ State updated: Last report = July 8, 2026 8:00 AM
+       ✓ No duplicate papers across weeks!
+       ✓ Each week contains truly fresh content
+
+Week 3 (July 15, 8:00 AM):
+Hermes: ✅ Continuing incremental mode
+       ✅ Retrieved: 47 papers (July 8 - July 15, 2026)
+       ✅ Filtered: 5 duplicates (from previous weeks)
+       ✅ Returns: 42 NEW papers
+       ✓ Zero duplication across all reports
+       ✓ Complete coverage of new research
+
+[BENEFITS]
+- Zero paper duplication across weeks
+- Each week contains only TRULY NEW research
+- Time saved: Don't review papers you've already seen
+- Still captures all new research automatically
 ```
 
 ---

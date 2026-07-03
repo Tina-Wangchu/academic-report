@@ -32,6 +32,15 @@ from urllib.parse import urlencode, quote
 from urllib.request import urlopen, Request
 from typing import List, Dict, Any, Optional
 
+# 导入质量评分和代表性筛选模块
+try:
+    from quality_scorer import PaperQualityScorer
+    from representative_selector import RepresentativePaperSelector
+    QUALITY_MODULES_AVAILABLE = True
+except ImportError:
+    QUALITY_MODULES_AVAILABLE = False
+    print("Warning: Quality scoring modules not available. Install quality_scorer.py and representative_selector.py", file=sys.stderr)
+
 # ==================== SSL Context Configuration ====================
 
 def create_ssl_context():
@@ -46,7 +55,7 @@ SSL_CONTEXT = create_ssl_context()
 
 # ==================== Configuration ====================
 
-DEFAULT_MAX_RESULTS = 8
+DEFAULT_MAX_RESULTS = 50  # 改进：从8篇提高到50篇（改进2：配合API请求200篇的策略）
 DEFAULT_TIME_RANGE = "3y"  # 3 years
 DEFAULT_LANGUAGE = "bilingual"
 DEFAULT_SORT_BY = "relevance"
@@ -248,6 +257,19 @@ class PaperSearchEngine:
         # 确定应用领域（用于优化数据源选择）
         self.domain = config.get("domain", DEFAULT_DOMAIN)
 
+        # 分离API请求量和用户返回量（改进2）
+        self.api_request_limit = 200  # API固定请求200篇，确保充足的数据池
+        self.user_max_results = config.get("max_results", DEFAULT_MAX_RESULTS)  # 用户期望的返回数量
+
+        # 质量筛选功能（新增）
+        self.enable_quality_filter = config.get("enable_quality_filter", False)
+        if self.enable_quality_filter and QUALITY_MODULES_AVAILABLE:
+            self.quality_scorer = PaperQualityScorer()
+            self.representative_selector = RepresentativePaperSelector()
+        else:
+            self.quality_scorer = None
+            self.representative_selector = None
+
     def _parse_keywords(self, keywords_input) -> List[str]:
         """Parse keywords from various input formats."""
         if isinstance(keywords_input, str):
@@ -269,34 +291,67 @@ class PaperSearchEngine:
 
         return " ".join(query_parts)
 
-    def _filter_by_year(self, papers: List[Dict]) -> List[Dict]:
-        """Filter papers by publication year based on time_range."""
+    def _filter_by_date(self, papers: List[Dict]) -> List[Dict]:
+        """
+        Filter papers by publication date (精确到天).
+
+        改进1：从按年份过滤改为精确到天的过滤
+        避免返回时间范围外的论文（如2025-01-01的论文）
+        """
         if not self.time_range:
             return papers
 
         start_date = datetime.fromisoformat(self.time_range["start_date"])
-        cutoff_year = start_date.year
+        end_date = datetime.fromisoformat(self.time_range["end_date"])
+
+        # 统一使用UTC时区，确保时间比较准确
+        start_date = start_date.replace(tzinfo=timezone.utc)
+        end_date = end_date.replace(tzinfo=timezone.utc)
+        end_date = end_date.replace(hour=23, minute=59, second=59)  # 包含当天最后一刻
 
         filtered = []
         for paper in papers:
-            pub_date = self._extract_publication_year(paper)
-            if pub_date and pub_date >= cutoff_year:
+            pub_date = self._extract_publication_date(paper)
+            if pub_date and start_date <= pub_date <= end_date:
                 filtered.append(paper)
 
         return filtered
 
-    def _extract_publication_year(self, paper: Dict) -> Optional[int]:
-        """Extract publication year from paper metadata."""
-        # Try different fields that might contain year info
-        year_fields = ["year", "publicationDate", "published", "pubDate"]
+    def _extract_publication_date(self, paper: Dict) -> Optional[datetime]:
+        """
+        提取论文的发表日期（精确到天）。
 
-        for field in year_fields:
+        支持多种日期格式：
+        - ISO 8601: 2025-07-01T12:34:56Z
+        - 日期格式: 2025-07-01
+        - 年份: 2025（退化为该年1月1日）
+        """
+        # 尝试不同的日期字段
+        date_fields = ["publicationDate", "published", "pubDate", "date", "year"]
+
+        for field in date_fields:
             if field in paper and paper[field]:
-                value = str(paper[field])
-                # Extract year from ISO date or plain year
-                year_match = re.search(r'(\d{4})', value)
-                if year_match:
-                    return int(year_match.group(1))
+                value = str(paper[field]).strip()
+
+                # 情况1: 完整的ISO日期时间（包含T）
+                if "T" in value:
+                    try:
+                        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except ValueError:
+                        continue
+
+                # 情况2: 只有日期（包含-）
+                elif "-" in value and len(value) >= 8:
+                    try:
+                        dt = datetime.fromisoformat(value)
+                        return dt.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        continue
+
+                # 情况3: 只有年份（4位数字）
+                elif value.isdigit() and len(value) == 4:
+                    # 退化为该年的1月1日
+                    return datetime(int(value), 1, 1, tzinfo=timezone.utc)
 
         return None
 
@@ -307,7 +362,8 @@ class PaperSearchEngine:
         if sort_by == "citation_count" and "citationCount" in papers[0] if papers else False:
             return sorted(papers, key=lambda p: p.get("citationCount", 0), reverse=True)
         elif sort_by == "publicationDate" or sort_by == "publish_date":
-            return sorted(papers, key=lambda p: self._extract_publication_year(p) or 0, reverse=True)
+            # 改进1：使用新的_extract_publication_date方法
+            return sorted(papers, key=lambda p: self._extract_publication_date(p) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         else:  # relevance (default order from APIs)
             return papers
 
@@ -359,14 +415,14 @@ class PaperSearchEngine:
         # 根据领域确定数据源优先级
         domain_priority = DOMAIN_SOURCE_PRIORITY.get(self.domain, DOMAIN_SOURCE_PRIORITY["general"])
 
-        # 按优先级调用数据源
+        # 按优先级调用数据源（改进2：使用固定的api_request_limit确保数据充足）
         for source_name in domain_priority:
             if source_name == "Semantic Scholar":
                 # Semantic Scholar: 质量最高，有引用数据
                 s2_papers = SemanticScholarAPI.search_papers(
                     query=query,
                     fields="paperId,title,abstract,authors,year,publicationDate,journal,citationCount,doi,url",
-                    limit=self.config.get("max_results", DEFAULT_MAX_RESULTS) * 2,
+                    limit=self.api_request_limit,  # 改进2：固定请求200篇
                     year=self.time_range["start_date"][:4] if self.time_range else None
                 )
                 if s2_papers:
@@ -377,7 +433,7 @@ class PaperSearchEngine:
                 # arXiv: AI领域最新预印本最多
                 arxiv_papers = ArxivAPI.search_papers(
                     query=query,
-                    max_results=self.config.get("max_results", DEFAULT_MAX_RESULTS)
+                    max_results=self.api_request_limit  # 改进2：固定请求200篇
                 )
                 if arxiv_papers:
                     all_papers.extend(arxiv_papers)
@@ -387,35 +443,71 @@ class PaperSearchEngine:
                 # CrossRef: 统计学和金融期刊覆盖最佳
                 crossref_papers = CrossRefAPI.search_papers(
                     query=query,
-                    rows=self.config.get("max_results", DEFAULT_MAX_RESULTS),
+                    rows=self.api_request_limit,  # 改进2：固定请求200篇
                     filter_year=self.time_range["start_date"][:4] if self.time_range else None
                 )
                 if crossref_papers:
                     all_papers.extend(crossref_papers)
                     sources_used.append("CrossRef")
 
-        # Apply filters
-        filtered_papers = self._filter_by_year(all_papers)
+        # Apply filters（改进1：使用精确到天的日期过滤）
+        filtered_papers = self._filter_by_date(all_papers)
+
+        # 收集统计信息（改进2：提供透明度）
+        api_retrieved = len(all_papers)
+        after_filtering = len(filtered_papers)
+
         deduplicated_papers = self._deduplicate_papers(filtered_papers)
+        after_dedup = len(deduplicated_papers)
+
         sorted_papers = self._sort_papers(deduplicated_papers)
 
-        # Limit to max_results
-        max_results = self.config.get("max_results", DEFAULT_MAX_RESULTS)
-        final_papers = sorted_papers[:max_results]
+        # 质量筛选步骤（新增核心功能1）
+        if self.enable_quality_filter and self.quality_scorer and self.representative_selector:
+            # 步骤1: 为每篇论文评分
+            for paper in sorted_papers:
+                paper["quality_score"] = self.quality_scorer.score_paper(
+                    paper,
+                    {"query": query, "domain": self.domain}
+                )
 
-        # Build result
+            # 步骤2: 选择代表性论文（避免重复相似研究）
+            sorted_papers = self.representative_selector.select_representative_papers(
+                sorted_papers,
+                max_count=self.user_max_results
+            )
+            # 按质量分数重新排序
+            sorted_papers = sorted(
+                sorted_papers,
+                key=lambda p: p.get("quality_score", 0),
+                reverse=True
+            )
+
+        # Limit to user requested max_results（改进2：使用user_max_results）
+        final_papers = sorted_papers[:self.user_max_results]
+
+        # Build result（改进2：添加详细统计信息）
         result = {
             "status": "success",
             "query": query,
-            "total_found": len(final_papers),
+            "total_found": len(final_papers),  # 最终返回数量
+            "total_available": after_dedup,     # 过滤去重后可用数量
+            "total_retrieved": api_retrieved,  # API实际返回数量
             "sources_used": list(set(sources_used)),
             "papers": final_papers,
             "filters_applied": {
                 "time_range": self.time_range,
                 "language": self.config.get("language", DEFAULT_LANGUAGE),
-                "max_results": max_results,
-                "domain": self.domain  # 添加领域信息到结果中
+                "max_results": self.user_max_results,
+                "domain": self.domain
             },
+            "statistics": {  # 新增：详细统计信息
+                "api_retrieved": api_retrieved,       # API返回数量
+                "after_date_filtering": after_filtering,  # 日期过滤后
+                "after_deduplication": after_dedup,    # 去重后
+                "finally_returned": len(final_papers)  # 最终返回
+            },
+            "quality_filter_enabled": self.enable_quality_filter,  # 新增：质量筛选状态
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
@@ -550,6 +642,8 @@ Examples:
     parser.add_argument("--domain", default=DEFAULT_DOMAIN,
                        choices=["general", "statistics", "ai", "finance"],
                        help="Application domain for optimized source selection (default: general)")
+    parser.add_argument("--enable-quality-filter", action="store_true",
+                       help="Enable quality filtering and representative paper selection (returns most impactful papers)")
     parser.add_argument("--output-format", default="json",
                        choices=["json", "markdown", "csv"],
                        help="Output format (default: json)")
@@ -565,7 +659,8 @@ Examples:
         "max_results": args.max_results,
         "language": args.language,
         "sort_by": args.sort_by,
-        "domain": args.domain  # 添加应用领域参数
+        "domain": args.domain,  # 添加应用领域参数
+        "enable_quality_filter": args.enable_quality_filter  # 添加质量筛选开关
     }
 
     # If no topic provided but keywords exist, use keywords as topic
