@@ -39,7 +39,11 @@ class DataFormatter:
                 'pdf_url': paper.get('pdf_url', ''),
                 'keywords': paper.get('keywords', []),
                 'doi': paper.get('doi', ''),
-                'source': paper.get('source', 'Unknown')
+                # Fix source field fallback chain: source -> journal -> arXiv -> venue
+                'source': (paper.get('source') or
+                          paper.get('journal') or
+                          paper.get('arXiv') or
+                          paper.get('venue', 'Unknown'))
             }
 
             # 确保作者字段为字符串列表

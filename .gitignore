@@ -6,13 +6,19 @@ __pycache__/
 # Temporary files
 paper-skill/tmp/
 paper-skill/past_test/
+paper-skill/scripts-copy/
+
+# Test output files
+test_output/
+*.pdf
+*.html
+!tests/*.html
 
 # Log files
 paper-email-service-skill/logs/
 *.log
 
 # Cache directories
-paper-email-service-skill/**/__pycache__/
 **/__pycache__/
 
 # External downloads
@@ -21,10 +27,39 @@ Hermes-Agent/
 # Document files
 *.docx
 *.doc
+~$*
 
 # Environment files (contains sensitive information)
 .env
 .env.local
 
-# PDF reports (optional - uncomment if you want to exclude PDFs)
-# *.pdf
+# Runtime data files
+*.json
+!paper-email-service-skill/config/*.yaml
+!tests/*.py
+
+# Search logs and temp data
+paper-skill/paper-search/scripts/real_search_results.json
+paper-skill/paper-search/scripts/search_log.txt
+paper-skill/paper-search/scripts/test_state.json
+paper-skill/paper-search/cache/
+paper-skill/report-generator/scripts/enhanced_statistics_report.*
+paper-skill/report-generator/scripts/statistics_complete_report.*
+paper-skill/report-generator/scripts/statistics_week_report_new.pdf
+paper-skill/report-generator/scripts/test_*.pdf
+paper-skill/report-generator/scripts/test_*.json
+
+# Root temp files
+HERMES_API_LIMIT_FIX_COMPLETE.md
+HERMES_FIX_COMPLETE_GUIDE.md
+HERMES_MARKDOWN_FIX_FINAL.bat
+restart_and_test_hermes.sh
+set_hermes_env.bat
+fix_workflow_executor.py
+test_complete_markdown_workflow.bat
+test_hermes_workflow.bat
+paper-search-quick-fix.patch
+
+# OS files
+Thumbs.db
+.DS_Store

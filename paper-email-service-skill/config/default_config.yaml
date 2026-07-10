@@ -17,7 +17,7 @@ search_defaults:
 
 # 默认报告参数
 report_defaults:
-  format: "pdf"              # 报告格式：pdf/markdown
+  format: "html"             # 报告格式：html（推荐，美观无编码问题）/markdown/pdf
   include_analysis: true     # 包含趋势分析
   include_references: true   # 包含参考文献
   language: "bilingual"      # 报告语言

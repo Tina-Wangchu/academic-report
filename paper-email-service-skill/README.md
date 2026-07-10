@@ -5,9 +5,9 @@
 
 ## 🎯 Skill概述 / Skill Overview
 
-**Paper Email Service** 是一个集成学术论文检索、专业PDF报告生成和邮件发送的自动化研究工作流服务。支持单次执行和定时任务两种模式，让您的学术文献调研完全自动化。
+**Paper Email Service** 是一个集成学术论文检索、深度分析报告生成和邮件发送的自动化研究工作流服务。支持单次执行和定时任务两种模式，让您的学术文献调研完全自动化。
 
-**Paper Email Service** is an integrated academic research workflow automation service that combines paper retrieval, professional PDF report generation, and email delivery. Supports both one-time execution and scheduled tasks, making your academic literature research completely automated.
+**Paper Email Service** is an integrated academic research workflow automation service that combines paper retrieval, in-depth analysis report generation, and email delivery. Supports both one-time execution and scheduled tasks, making your academic literature research completely automated.
 
 ---
 
@@ -15,11 +15,11 @@
 
 ### 📊 单次报告模式 / One-Time Report Mode
 - **即时检索**：从多个学术数据库检索最新论文
-- **专业报告**：生成包含统计分析的PDF学术报告
+- **专业报告**：生成包含深度趋势分析的Markdown学术报告
 - **邮件发送**：自动将报告发送到您的邮箱
 
 - **Instant Retrieval**: Search latest papers from multiple academic databases
-- **Professional Reports**: Generate PDF academic reports with statistical analysis
+- **Professional Reports**: Generate Markdown academic reports with in-depth trend analysis
 - **Email Delivery**: Automatically send reports to your inbox
 
 ### ⏰ 定时任务模式 / Scheduled Task Mode
@@ -44,7 +44,7 @@ Express your needs in natural language during conversation:
 #### 中文示例 / Chinese Examples
 ```
 用户: "帮我生成一份机器学习领域的最新研究报告发送到我邮箱"
-用户: "搜索transformer在NLP中应用的论文，制作PDF报告发给我"
+用户: "搜索transformer在NLP中应用的论文，制作深度分析报告发给我"
 用户: "检索最近1年统计学决策理论的文献，生成报告"
 用户: "我要一份关于深度强化学习的学术报告"
 ```
@@ -52,7 +52,7 @@ Express your needs in natural language during conversation:
 #### 英文示例 / English Examples
 ```
 User: "Generate a latest research report in machine learning and send to my email"
-User: "Search papers on transformer in NLP, create a PDF report and email it to me"
+User: "Search papers on transformer in NLP, create an in-depth analysis report and email it to me"
 User: "Retrieve statistical decision theory literature from the past year and generate a report"
 User: "I want an academic report on deep reinforcement learning"
 ```

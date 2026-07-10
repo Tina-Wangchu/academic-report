@@ -1,600 +1,137 @@
-# 🎓 Agent Scholar - Hermes Agent Skills Repository
+# Agent-Scholar - Hermes Academic Paper Search Skill
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Hermes Agent](https://img.shields.io/badge/Hermes-Agent-compatible-green.svg)](https://hermes.ai)
+Hermes Agent 的学术论文智能检索和分析技能。支持多数据源并行检索、AI深度分析、HTML报告自动生成和邮件推送。
 
-> Academic research automation skills for Hermes Agent - Paper search, report generation, and email delivery workflow.
-
----
-
-## 📚 **Overview**
-
-**Agent Scholar** is a collection of Hermes Agent skills designed to automate academic research workflows. It integrates paper search, PDF report generation, and email delivery into a seamless, automated pipeline.
-
-### ⭐ **Key Features**
-
-- 🔍 **Multi-Source Paper Search** - Retrieve academic papers from Semantic Scholar, arXiv, and CrossRef
-- ⭐ **Quality-Based Paper Selection** - AI-powered quality scoring system returns most impactful and representative research
-- 🔄 **Incremental Weekly Reports** - Smart state management ensures only NEW papers since last report
-- 📄 **Professional PDF Reports** - Generate formatted academic reports with cover pages, analysis, and references
-- 📧 **Automated Email Delivery** - Send reports via email with support for multiple providers (Gmail, QQ Mail, etc.)
-- 🤖 **User-Centric Interaction** - Built-in user constraint protection principles
-- ⏰ **Scheduled Tasks** - Support for periodic research updates (weekly/monthly reports)
-
----
-
-## 🎯 **Main Feature: Paper Email Service**
-
-The **paper-email-service** skill provides a complete automated research workflow:
-
-### **Workflow**
+## Architecture
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Paper Search   │ → │ Report Generator │ → │  Email Sender   │
-│  (Multi-source) │    │  (PDF Export)    │    │  (SMTP/IMAP)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+用户请求 → 多源并行检索 → AI深度分析 → HTML报告生成 → 邮件推送
+                |                |              |
+          Semantic Scholar   单篇结构化分析    美观HTML排版
+          arXiv              领域综合综述      CSS渐变样式
+          CrossRef           智能筛选去重       打印友好
+          OpenAlex
+          PubMed
 ```
 
-### **What It Does**
+### Three-Stage Workflow
 
-1. **Search Papers** - Retrieves academic papers based on topic, keywords, time range, and domain
-2. **Generate Report** - Creates a professional PDF report with:
-   - Cover page with metadata
-   - Search summary and statistics
-   - Complete paper list with abstracts
-   - Research trend analysis
-   - Formatted references
-3. **Send Email** - Delivers the report as PDF attachment to your inbox
+1. **Multi-Source Search**: Parallel retrieval from 5 academic APIs with automatic rate-limit handling, deduplication by title/DOI similarity, and quality scoring
+2. **AI Deep Analysis**: Agent analyzes each paper's research objective, core method, key innovation, main findings, and significance (not raw abstract copying)
+3. **HTML Report + Email**: Professional HTML report with CSS styling, then email delivery
 
-### **Example Usage**
+## Skill Modules
 
-```
-You: "生成一份人工智能领域的最新研究报告发送到我的邮箱"
+### paper-email-service (Orchestrator)
+End-to-end workflow orchestration: search → analyze → report → email.
+- `SKILL.md` - System prompt with mandatory AI analysis requirements
+- `scripts/workflow_executor.py` - 4-step pipeline executor
+- `scripts/intelligent_search_executor.py` - Multi-source search with quality scoring
+- `scripts/intelligent_query_parser.py` - Natural language to structured parameters
+- `config/default_config.yaml` - Default configuration
 
-Hermes Agent:
-✅ Searching academic papers...
-✅ Found 12 papers (Semantic Scholar, arXiv)
-✅ Generating PDF report...
-✅ Sending email to tinawangchu0615@gmail.com...
-✅ Report delivered successfully!
-```
+### paper-search (Data Acquisition)
+Multi-source academic paper search engine.
+- `SKILL.md` - Search skill definition with 5 data sources
+- `scripts/paper_search.py` - Search engine (Semantic Scholar, arXiv, CrossRef, OpenAlex, PubMed)
 
----
+### paper-summarizer (AI Analysis)
+AI-powered paper analysis and summarization.
+- `SKILL.md` - Agent-driven analysis instructions (not rule-based script)
 
-## 🌟 **Advanced Features**
+### report-generator (Document Generation)
+Professional HTML report generation.
+- `SKILL.md` - Report structure with 6 standard sections
+- `scripts/generate_report.py` - Report generator
 
-### **Quality-Based Paper Selection** ⭐
+### email-sender (Delivery)
+Email sending via SMTP (Gmail, QQ, 163, Outlook supported).
+- `SKILL.md` - Email skill definition
+- `scripts/send_email.py` - SMTP email sender with SOCKS5 proxy support
 
-**Problem Solved**: Traditional paper search returns ALL papers, including low-quality or duplicate research.
-
-**Our Solution**: Multi-dimensional quality scoring system (100-point scale) + intelligent representative selection.
-
-#### **Quality Scoring Dimensions**
-
-| Dimension | Points | Description |
-|-----------|--------|-------------|
-| **Citations** | 30 | Citation count (500+ = high impact) |
-| **Venue Quality** | 25 | Journal/conference tier (Nature/NeurIPS = top tier) |
-| **Author Reputation** | 20 | Notable researchers (Hinton/LeCun/Bengio) |
-| **Innovation** | 15 | Breakthrough keywords in abstract |
-| **Recency** | 10 | Latest research bonus (within 1 month) |
-
-#### **Representative Selection**
-
-- **Topic Clustering** - Groups similar papers using Jaccard similarity
-- **Diversity Guarantee** - Selects best paper from each cluster
-- **Avoids Duplication** - No more 10 papers on "transformer improvements"
-
-#### **Usage**
-
-```bash
-# Enable quality filtering
-python paper_search.py \
-  --topic "machine learning" \
-  --time-range 1y \
-  --max-results 10 \
-  --enable-quality-filter
-```
-
-**Output**:
-```
-✓ Found 8,234 papers (after filtering)
-✓ Selected top 10 most representative papers
-✓ Quality scores: 92, 88, 85, 82, 78, 75, 72, 70, 68, 65
-
-📊 Quality Distribution:
-- 90-100: 2 papers (tier-1 research)
-- 80-89: 3 papers (excellent)
-- 70-79: 3 papers (good)
-- 60-69: 2 papers (acceptable)
-
-🎯 Representative Topics:
-- Deep Learning Theory (3 papers)
-- Computer Vision (2 papers)
-- NLP (2 papers)
-- Reinforcement Learning (2 papers)
-- Bayesian Methods (1 paper)
-```
-
----
-
-### **Incremental Weekly Reports** 🔄
-
-**Problem Solved**: Weekly reports often contain duplicate papers from previous weeks.
-
-**Our Solution**: State management + incremental search ensures ONLY new papers since last report.
-
-#### **How It Works**
-
-```
-Week 1 Report (July 1):
-├─ Retrieves papers from: 2025-06-24 to 2025-07-01
-├─ Returns: 45 papers
-└─ State initialized ✓
-
-Week 2 Report (July 8):
-├─ Retrieves papers from: 2025-07-01 to 2025-07-08
-├─ Filter out: 7 papers already sent in Week 1
-├─ Returns: 38 NEW papers
-└─ State updated ✓
-
-Week 3 Report (July 15):
-├─ Retrieves papers from: 2025-07-08 to 2025-07-15
-├─ Filter out: 5 papers from Week 1 & 2
-├─ Returns: 42 NEW papers
-└─ State updated ✓
-```
-
-#### **Key Features**
-
-- **Smart State Tracking** - Records last report time and sent paper IDs
-- **Automatic Deduplication** - Never sends the same paper twice
-- **Persistent Storage** - JSON-based state file survives restarts
-- **User Isolation** - Each user has independent report history
-
-#### **Usage Example**
-
-```python
-from incremental_search import search_incremental
-
-# Week 1: Initialize
-result = search_incremental(
-    topic="artificial intelligence",
-    user_id="your@email.com",
-    time_range="7d",
-    max_results=10
-)
-# → Returns: 45 papers
-# → Note: "First report - state initialized"
-
-# Week 2: Incremental mode (same command)
-result = search_incremental(
-    topic="artificial intelligence",
-    user_id="your@email.com",
-    time_range="7d",
-    max_results=10
-)
-# → Returns: 38 NEW papers
-# → Note: "Showing new papers since 2025-07-01"
-# → Note: "(7 duplicates filtered)"
-
-# Week 3: Continue incremental mode
-# → Only returns papers from Week 2 onwards
-```
-
-#### **Benefits**
-
-- ✅ **Zero Duplication** - Never receive the same paper twice
-- ✅ **Fresh Content Only** - Each week contains truly NEW research
-- ✅ **Time Saving** - Don't waste time reviewing papers you've already seen
-- ✅ **Complete Coverage** - Still captures all new research automatically
-
----
-
-## 📁 **Repository Structure**
+## Directory Structure
 
 ```
 agent-scholar/
-├── 📧 paper-email-service-skill/     # Main skill: automated research workflow
-│   ├── SKILL.md                      # Skill documentation
-│   ├── README.md                     # Skill readme
-│   ├── scripts/                      # Python implementation
-│   │   ├── paper_email_service.py    # Main workflow executor
-│   │   ├── workflow_executor.py      # Orchestration logic
-│   │   ├── config_manager.py         # Configuration management
-│   │   ├── task_scheduler.py        # Scheduled task support
-│   │   └── utils/                    # Utilities
-│   ├── config/                       # Configuration templates
-│   ├── templates/                    # Email templates
-│   └── integration/                  # Integration tests
-│
-├── 🔍 paper-skill/                   # Paper search & report generation
-│   ├── paper-search/                 # Academic paper search
+├── paper-email-service-skill/    # Orchestrator skill
+│   ├── SKILL.md                  # System prompt (AI analysis + multi-source)
+│   ├── config/default_config.yaml
+│   └── scripts/
+│       ├── workflow_executor.py
+│       ├── intelligent_search_executor.py
+│       ├── intelligent_query_parser.py
+│       ├── config_manager.py
+│       └── utils/
+│           ├── formatters.py
+│           ├── validators.py
+│           └── error_handler.py
+├── paper-skill/                   # Sub-skills (mirror of Hermes runtime)
+│   ├── paper-search/             # Search engine
 │   │   ├── SKILL.md
-│   │   └── scripts/
-│   │       ├── paper_search.py       # Multi-source paper search engine
-│   │       ├── quality_scorer.py      # NEW: Quality scoring system (100-point scale)
-│   │       ├── representative_selector.py  # NEW: Representative paper selection
-│   │       ├── report_state_manager.py    # NEW: Weekly report state tracking
-│   │       └── incremental_search.py     # NEW: Incremental paper search
-│   │
-│   └── report-generator/             # PDF report generation
+│   │   └── scripts/paper_search.py
+│   ├── paper-summarizer/         # AI analysis
+│   │   ├── SKILL.md
+│   │   └── scripts/paper_summarizer.py
+│   ├── report-generator/         # HTML report
+│   │   ├── SKILL.md
+│   │   └── scripts/generate_report.py
+│   └── email-sender/             # Email delivery
 │       ├── SKILL.md
-│       └── scripts/
-│           └── generate_report.py    # Academic PDF report generator
-│
-├── 📮 email-skill/                   # Email sending capability
-│   ├── SKILL.md
-│   └── email-sender-skill-intro.md
-│
-├── 🧠 memory/                        # Agent interaction principles
-│   └── agent-interaction-principle-user-constraint-protection.md
-│
-├── 📖 MEMORY.md                      # Memory index
-│
-├── 🔧 USER_CONSTRAINT_PROTECTION_FIX.md  # Design fix documentation
-│
-├── 📄 .gitignore                     # Git ignore rules
-└── 📜 LICENSE                        # MIT License
+│       └── scripts/send_email.py
+├── tests/                        # Test scripts
+│   ├── test_api_rate_limits.py   # API rate limiting check
+│   ├── test_intelligent_search.py # Multi-source search test
+│   ├── test_hermes_fixes.py      # Comprehensive fix verification
+│   ├── test_html_report.py       # HTML report generation test
+│   └── ...
+├── tools/                        # Utility tools
+└── docs/                         # Documentation
 ```
 
----
+## Key Features
 
-## 🚀 **Quick Start**
+- **Multi-source search**: 5 academic APIs (Semantic Scholar, arXiv, CrossRef, OpenAlex, PubMed)
+- **AI deep analysis**: Structured analysis per paper + domain overview (not abstract copying)
+- **Smart filtering**: Multi-dimensional quality scoring, diversity selection per research direction
+- **HTML reports**: Professional CSS styling, print-friendly, no PDF encoding issues
+- **Rate-limit resilient**: Automatic source switching on 429 errors
+- **True 7-day range**: Precise date calculation with timedelta
+- **Scheduled tasks**: Weekly/monthly automated reports via Hermes cron
 
-### **Prerequisites**
+## Deployment
 
-- [Hermes Agent](https://hermes.ai) installed
-- Python 3.8+
-- Gmail account (or other supported email provider)
-
-### **Installation**
-
-1. **Clone this repository**
-   ```bash
-   git clone https://github.com/Tina-Wangchu/agent-scholar.git
-   cd agent-scholar
-   ```
-
-2. **Copy skills to Hermes directory**
-   ```bash
-   # Copy to Hermes skills directory
-   cp -r paper-email-service-skill ~/.hermes/skills/my-category/
-   cp -r paper-skill/paper-search ~/.hermes/skills/my-category/
-   cp -r paper-skill/report-generator ~/.hermes/skills/my-category/
-   ```
-
-3. **Configure environment variables**
-   
-   Edit `~/.hermes/.env` or Hermes configuration file:
-   ```bash
-   # Gmail configuration
-   GMAIL_ADDRESS=your_email@gmail.com
-   GMAIL_APP_PASSWORD=your_16_char_app_password
-   SMTP_SOCKS_PROXY=socks5://127.0.0.1:7897  # Optional: for Gmail access in China
-   ```
-
-   **Get Gmail App Password**: https://myaccount.google.com/apppasswords
-
-4. **Restart Hermes Agent**
-   ```bash
-   hermes restart
-   ```
-
-### **Usage**
-
-In Hermes Agent chat interface:
-
+Skills are deployed to Hermes runtime directory:
 ```
-You: "生成一份人工智能领域的最新研究报告发送到我的邮箱"
-
-Hermes Agent will:
-1. Collect requirements (topic, time range, paper count)
-2. Search academic papers from multiple sources
-3. Generate professional PDF report
-4. Send report to your email
+C:/Users/lanpi/AppData/Local/hermes/skills/academic/
 ```
 
----
+To deploy changes:
+1. Copy modified files to the corresponding Hermes runtime path
+2. Clear Python cache: `rm -rf **/__pycache__`
+3. Restart Hermes
 
-## 🛠️ **Technical Stack**
+## Testing
 
-### **Languages & Frameworks**
-- **Python 3.8+** - Core implementation
-- **Hermes Agent SDK** - Skill development framework
-
-### **Key Dependencies**
-- **smtplib** - Email sending (Python standard library)
-- **PySocks** - SOCKS5 proxy support
-- **reportlab** - PDF generation
-- **urllib** - HTTP requests (no external dependencies for APIs)
-
-### **Data Sources**
-- **Semantic Scholar API** - Free, academic paper metadata
-- **arXiv API** - Preprint papers (CS, physics, math)
-- **CrossRef API** - Global academic literature metadata
-
-### **Email Providers**
-- Gmail (SMTP)
-- QQ Mail
-- 163/126 Mail
-- WeChat Work Mail
-- Outlook
-
----
-
-## 📋 **Skills Detail**
-
-### **1. paper-email-service** ⭐
-- **Description**: Complete automated research workflow
-- **Features**: Paper search + PDF report + Email delivery
-- **Use case**: Regular research updates, literature review automation
-- **Location**: `paper-email-service-skill/`
-
-### **2. paper-search**
-- **Description**: Multi-source academic paper search
-- **Features**: 
-  - Domain optimization (AI, statistics, finance)
-  - Time range filtering
-  - Citation-based sorting
-- **Use case**: Finding relevant academic papers
-- **Location**: `paper-skill/paper-search/`
-
-### **3. report-generator**
-- **Description**: Professional academic PDF report generation
-- **Features**:
-  - Cover page with metadata
-  - Paper list with abstracts
-  - Trend analysis
-  - Formatted references (GB/T 7714)
-- **Use case**: Creating literature review reports
-- **Location**: `paper-skill/report-generator/`
-
----
-
-## 🎨 **Design Principles**
-
-### **User Constraint Protection** 🛡️
-
-This repository implements the **User Constraint Protection** principle:
-
-> **Agent must never modify user parameters without explicit permission.**
-
-**Example**:
-```
-❌ Wrong:  "No papers found in 1 year. I'll auto-expand to 5 years."
-✅ Correct: "No papers found in 1 year. Should I expand to 3 or 5 years?"
-```
-
-See: [memory/agent-interaction-principle-user-constraint-protection.md](memory/agent-interaction-principle-user-constraint-protection.md)
-
----
-
-## 📊 **Usage Examples**
-
-### **Example 1: Weekly AI Research Report**
-
-```
-You: "每周一早上8点自动发送AI领域的论文报告"
-
-Hermes: ✅ Created scheduled task "AI Weekly Report"
-       - Schedule: Every Monday 8:00 AM
-       - Topic: Artificial Intelligence and Machine Learning
-       - Time range: Last 7 days
-       - Max papers: 15
-```
-
-### **Example 2: One-time Literature Review**
-
-```
-You: "搜索transformer在NLP中的应用，生成报告发邮件"
-
-Hermes: ✅ Found 18 papers on "Transformer in NLP"
-       ✅ Generated PDF report (12 pages)
-       ✅ Sent to tinawangchu0615@gmail.com
-```
-
-### **Example 3: Statistics Domain Search**
-
-```
-You: "检索统计决策理论的最新研究"
-
-Hermes: ✅ Using domain-optimized search (statistics)
-       ✅ Prioritizing CrossRef (best for statistics journals)
-       ✅ Found 8 papers from top statistics venues
-```
-
-### **Example 4: Quality-Filtered Search (NEW ⭐)**
-
-```
-You: "搜索机器学习在医疗领域的最新突破性研究，只要最精华的10篇"
-
-Hermes: ✅ Retrieved 200 papers from APIs (Semantic Scholar, arXiv, CrossRef)
-       ✅ After date filtering (2025-07-03 to 2026-07-03): 187 papers
-       ✅ Applied quality scoring system (multi-dimensional):
-          - Citation count (30 points)
-          - Venue quality (25 points)
-          - Author reputation (20 points)
-          - Innovation score (15 points)
-          - Recency bonus (10 points)
-       ✅ Selected top 10 most representative papers
-       ✓ Avoided duplicates (7 similar papers grouped into 3 clusters)
-
-Quality Scores:
-  - 92 points: "Deep Learning for Medical Diagnosis" (Nature, 250+ citations)
-  - 88 points: "Bayesian Methods for ML" (JASA, 180 citations)
-  - 85 points: "Neural Network Interpretability" (NeurIPS, 150 citations)
-  ...
-
-[BENEFITS]
-- No more 10 papers on "similar transformer improvements"
-- Focus on breakthrough research, not incremental updates
-- Guaranteed diversity across subtopics
-```
-
-### **Example 5: Incremental Weekly Report (NEW 🔄)**
-
-```
-You: "每周一早上8点自动发送AI领域的最新研究报告"
-
-Week 1 (July 1, 8:00 AM):
-Hermes: ✅ First report initialized
-       ✅ Retrieved: 45 papers (June 24 - July 1, 2026)
-       ✅ All papers are NEW
-       ✅ State saved: Last report = July 1, 2026 8:00 AM
-       ✅ Report sent via email
-
-Week 2 (July 8, 8:00 AM):
-Hermes: ✅ Incremental mode activated
-       ✅ Retrieved: 43 papers (July 1 - July 8, 2026)
-       ✅ Filtered: 7 duplicates (already sent in Week 1)
-       ✅ Returns: 36 NEW papers
-       ✅ State updated: Last report = July 8, 2026 8:00 AM
-       ✓ No duplicate papers across weeks!
-       ✓ Each week contains truly fresh content
-
-Week 3 (July 15, 8:00 AM):
-Hermes: ✅ Continuing incremental mode
-       ✅ Retrieved: 47 papers (July 8 - July 15, 2026)
-       ✅ Filtered: 5 duplicates (from previous weeks)
-       ✅ Returns: 42 NEW papers
-       ✓ Zero duplication across all reports
-       ✓ Complete coverage of new research
-
-[BENEFITS]
-- Zero paper duplication across weeks
-- Each week contains only TRULY NEW research
-- Time saved: Don't review papers you've already seen
-- Still captures all new research automatically
-```
-
----
-
-## ⚙️ **Configuration**
-
-### **Environment Variables**
-
-| Variable | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `GMAIL_ADDRESS` | ✅ Yes | Your Gmail address | `user@gmail.com` |
-| `GMAIL_APP_PASSWORD` | ✅ Yes | 16-char app password | `abcdefghijklmnop` |
-| `SMTP_SOCKS_PROXY` | ⚠️ Conditional | SOCKS5 proxy (China) | `socks5://127.0.0.1:7897` |
-
-### **Skill Parameters**
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `time_range` | `1y` | Time range (1y/3y/5y/10y/unlimited) |
-| `max_results` | `10` | Maximum papers to retrieve |
-| `domain` | `general` | Domain optimization (ai/statistics/finance) |
-| `sort_by` | `relevance` | Sorting (relevance/citation_count/publish_date) |
-
----
-
-## 🧪 **Testing**
-
-### **Test Paper Search**
 ```bash
-python paper-skill/paper-search/scripts/paper_search.py \
-  --topic "machine learning" \
-  --time-range 1y \
-  --max-results 5
+# Test API rate limits
+python tests/test_api_rate_limits.py
+
+# Test multi-source search
+python tests/test_intelligent_search.py
+
+# Test HTML report generation
+python tests/test_html_report.py
+
+# Verify all fixes
+python tests/test_hermes_fixes.py
 ```
 
-### **Test Report Generation**
-```bash
-python paper-skill/report-generator/scripts/generate_report.py \
-  --input papers.json \
-  --output report.pdf
+## Usage in Hermes
+
 ```
-
-### **Test Email Sending**
-```bash
-python email-skill/scripts/send_email.py \
-  --to $GMAIL_ADDRESS \
-  --subject "Test" \
-  --body "Test email"
-```
-
----
-
-## 🤝 **Contributing**
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📝 **Documentation**
-
-- [Paper Email Service Documentation](paper-email-service-skill/README.md)
-- [User Constraint Protection Principle](memory/agent-interaction-principle-user-constraint-protection.md)
-- [Hermes Agent Skills Guide](https://hermes.ai/docs)
-
----
-
-## 🐛 **Troubleshooting**
-
-### **Common Issues**
-
-**Problem**: Email sending fails with timeout error
-```
-Solution: Set SMTP_SOCKS_PROXY environment variable
-export SMTP_SOCKS_PROXY="socks5://127.0.0.1:7897"
-```
-
-**Problem**: Authentication failed (535)
-```
-Solution: Use Gmail App Password, not login password
-Get it at: https://myaccount.google.com/apppasswords
-```
-
-**Problem**: Paper search returns 0 results
-```
-Solution: The Agent will ask if you want to expand time range
-(User Constraint Protection principle)
+"请为我搜索统计学领域这一周的最新研究成果，把报告发送到我的邮箱"
 ```
 
 ---
 
-## 📜 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 👨‍💻 **Author**
-
-**Tina Wangchu** - Agent Scholar Project
-
-- GitHub: [Tina-Wangchu](https://github.com/Tina-Wangchu)
-- Hermes Agent: @tinawangchu0615
-
----
-
-## 🙏 **Acknowledgments**
-
-- [Hermes Agent](https://hermes.ai) - Agent platform
-- [Semantic Scholar](https://www.semanticscholar.org/) - Academic paper API
-- [arXiv](https://arxiv.org/) - Preprint server
-- [CrossRef](https://www.crossref.org/) - Academic metadata
-
----
-
-## 📫 **Contact**
-
-For questions, suggestions, or issues:
-- Open an issue on GitHub
-- Email: tinawangchu0615@gmail.com
-
----
-
-**Made with ❤️ for the academic research community**
-
-⭐ If you find this project useful, please consider giving it a star!
+Last updated: 2026-07-10

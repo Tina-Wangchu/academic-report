@@ -27,9 +27,11 @@ import json
 import re
 import ssl
 import sys
+import os
+import time
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode, quote
-from urllib.request import urlopen, Request
+from urllib.request import urlopen, Request, ProxyHandler, build_opener
 from typing import List, Dict, Any, Optional
 
 # 导入质量评分和代表性筛选模块
@@ -52,6 +54,164 @@ def create_ssl_context():
     return ssl._create_unverified_context()
 
 SSL_CONTEXT = create_ssl_context()
+
+# ==================== Proxy Configuration ====================
+
+# Try to import PySocks for SOCKS5 proxy support
+try:
+    import socks
+    import socket
+    SOCKS_AVAILABLE = True
+except ImportError:
+    SOCKS_AVAILABLE = False
+    print("Warning: PySocks not available. SOCKS5 proxy disabled. Install with: pip install PySocks", file=sys.stderr)
+
+def parse_socks5_proxy(proxy_str):
+    """Parse SOCKS5 proxy string like 'socks5://127.0.0.1:7897'."""
+    if not proxy_str:
+        return None
+
+    # Parse format: socks5://host:port or socks5://user:pass@host:port
+    if proxy_str.startswith('socks5://'):
+        rest = proxy_str[8:]  # Remove 'socks5://'
+    elif proxy_str.startswith('socks4://'):
+        rest = proxy_str[8:]  # Remove 'socks4://'
+    else:
+        return None
+
+    # Remove leading slash if present
+    rest = rest.lstrip('/')
+
+    # Parse host:port or user:pass@host:port
+    if '@' in rest:
+        # Has authentication
+        auth, host_port = rest.split('@', 1)
+        if ':' in auth:
+            username, password = auth.split(':', 1)
+        else:
+            username = auth
+            password = None
+    else:
+        # No authentication
+        host_port = rest
+        username = None
+        password = None
+
+    # Parse host and port
+    if ':' in host_port:
+        host, port = host_port.split(':', 1)
+        port = int(port)
+    else:
+        host = host_port
+        port = 1080  # Default SOCKS port
+
+    return {
+        'type': 'socks5' if 'socks5' in proxy_str else 'socks4',
+        'host': host,
+        'port': port,
+        'username': username,
+        'password': password
+    }
+
+def get_proxy_config():
+    """Get proxy configuration from environment variables."""
+    # Check for SOCKS5 proxy first
+    socks_proxy = os.environ.get('ALL_PROXY') or os.environ.get('all_proxy')
+    if socks_proxy:
+        socks_config = parse_socks5_proxy(socks_proxy)
+        if socks_config:
+            return {'type': 'socks5', 'config': socks_config}
+
+    # Check for HTTP/HTTPS proxies
+    http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+
+    if http_proxy or https_proxy:
+        return {
+            'type': 'http',
+            'http': http_proxy,
+            'https': https_proxy
+        }
+
+    return None
+
+PROXY_CONFIG = get_proxy_config()
+
+# Configure SOCKS5 proxy if available
+if PROXY_CONFIG and PROXY_CONFIG.get('type') == 'socks5' and SOCKS_AVAILABLE:
+    socks_config = PROXY_CONFIG['config']
+    try:
+        if socks_config['username'] and socks_config['password']:
+            socks.set_default_proxy(
+                socks.SOCKS5,
+                socks_config['host'],
+                socks_config['port'],
+                username=socks_config['username'],
+                password=socks_config['password']
+            )
+        else:
+            socks.set_default_proxy(
+                socks.SOCKS5,
+                socks_config['host'],
+                socks_config['port']
+            )
+        socket.socket = socks.socksocket
+        print(f"SOCKS5 proxy configured: {socks_config['host']}:{socks_config['port']}", file=sys.stderr)
+    except Exception as e:
+        print(f"Failed to configure SOCKS5 proxy: {e}", file=sys.stderr)
+
+# ==================== Retry Mechanism ====================
+
+def retry_api_call(func, *args, max_retries=3, retry_delay=2, **kwargs):
+    """
+    Retry API calls with exponential backoff.
+
+    Args:
+        func: The API function to call
+        *args: Arguments for the function
+        max_retries: Maximum number of retry attempts
+        retry_delay: Initial delay between retries (seconds)
+        **kwargs: Keyword arguments for the function
+
+    Returns:
+        The result of the API call if successful, empty list otherwise
+    """
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                print(f"API call failed (attempt {attempt + 1}/{max_retries}): {e}", file=sys.stderr)
+                print(f"Retrying in {wait_time} seconds...", file=sys.stderr)
+                time.sleep(wait_time)
+            else:
+                print(f"API call failed after {max_retries} attempts: {e}", file=sys.stderr)
+
+    return []  # Return empty list if all retries fail
+
+def create_url_opener():
+    """Create a URL opener with HTTP/HTTPS proxy support if configured."""
+    # SOCKS5 proxy is configured at socket level, no opener needed
+    if PROXY_CONFIG and PROXY_CONFIG.get('type') == 'socks5':
+        return None
+
+    # HTTP/HTTPS proxy needs opener
+    if PROXY_CONFIG and PROXY_CONFIG.get('type') == 'http':
+        proxy_dict = {
+            'http': PROXY_CONFIG['http'],
+            'https': PROXY_CONFIG['https']
+        }
+        proxy_handler = ProxyHandler(proxy_dict)
+        opener = build_opener(proxy_handler)
+        return opener
+
+    return None
+
+URL_OPENER = create_url_opener()
 
 # ==================== Configuration ====================
 
@@ -85,6 +245,17 @@ def parse_time_range(time_range: str) -> Optional[Dict[str, Any]]:
 
     now = datetime.now(timezone.utc)
     end_date = now
+
+    # Parse patterns like "7d", "1w" (days)
+    day_match = re.match(r'^(\d+)d$', time_range)
+    if day_match:
+        days = int(day_match.group(1))
+        start_date = now - timedelta(days=days)
+        return {
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "days": days
+        }
 
     # Parse patterns like "3y", "1y", "5y", "10y"
     year_match = re.match(r'^(\d+)y$', time_range)
@@ -128,8 +299,8 @@ class SemanticScholarAPI:
     BASE_URL = "https://api.semanticscholar.org/graph/v1"
 
     @staticmethod
-    def search_papers(query: str, fields: str, limit: int = 100, year: str = None) -> List[Dict]:
-        """Search papers via Semantic Scholar API."""
+    def _search_papers_impl(query: str, fields: str, limit: int = 100, year: str = None) -> List[Dict]:
+        """Internal implementation of Semantic Scholar API search."""
         params = {
             "query": query,
             "fields": fields,
@@ -140,14 +311,26 @@ class SemanticScholarAPI:
 
         url = f"{SemanticScholarAPI.BASE_URL}/paper/search?{urlencode(params)}"
 
-        try:
-            request = Request(url, headers={"User-Agent": USER_AGENT})
+        request = Request(url, headers={"User-Agent": USER_AGENT})
+
+        # Use proxy opener if available
+        if URL_OPENER:
+            with URL_OPENER.open(request, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                return data.get("data", [])
+        else:
             with urlopen(request, timeout=30, context=SSL_CONTEXT) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 return data.get("data", [])
-        except Exception as e:
-            print(f"Semantic Scholar API error: {e}", file=sys.stderr)
-            return []
+
+    @staticmethod
+    def search_papers(query: str, fields: str, limit: int = 100, year: str = None) -> List[Dict]:
+        """Search papers via Semantic Scholar API with retry mechanism."""
+        return retry_api_call(
+            SemanticScholarAPI._search_papers_impl,
+            query=query, fields=fields, limit=limit, year=year,
+            max_retries=3, retry_delay=2
+        )
 
 
 class ArxivAPI:
@@ -156,8 +339,8 @@ class ArxivAPI:
     BASE_URL = "http://export.arxiv.org/api/query"
 
     @staticmethod
-    def search_papers(query: str, max_results: int = 100) -> List[Dict]:
-        """Search papers via arXiv API."""
+    def _search_papers_impl(query: str, max_results: int = 100) -> List[Dict]:
+        """Internal implementation of arXiv API search."""
         params = {
             "search_query": f"all:{query}",
             "start": 0,
@@ -167,9 +350,35 @@ class ArxivAPI:
         }
 
         url = f"{ArxivAPI.BASE_URL}?{urlencode(params)}"
+        request = Request(url, headers={"User-Agent": USER_AGENT})
 
-        try:
-            request = Request(url, headers={"User-Agent": USER_AGENT})
+        # Use proxy opener if available
+        if URL_OPENER:
+            with URL_OPENER.open(request, timeout=30) as response:
+                # arXiv returns XML, need to parse (simplified parsing)
+                import xml.etree.ElementTree as ET
+                xml_data = response.read().decode('utf-8')
+                root = ET.fromstring(xml_data)
+
+                # arXiv uses Atom namespace
+                ns = {"atom": "http://www.w3.org/2005/Atom"}
+                entries = root.findall("atom:entry", ns)
+
+                papers = []
+                for entry in entries:
+                    paper = {
+                        "title": entry.find("atom:title", ns).text.strip(),
+                        "authors": [author.find("atom:name", ns).text
+                                   for author in entry.findall("atom:author", ns)],
+                        "summary": entry.find("atom:summary", ns).text.strip(),
+                        "published": entry.find("atom:published", ns).text,
+                        "url": entry.find("atom:id", ns).text,
+                        "source": "arXiv"
+                    }
+                    papers.append(paper)
+
+                return papers
+        else:
             with urlopen(request, timeout=30, context=SSL_CONTEXT) as response:
                 # arXiv returns XML, need to parse (simplified parsing)
                 import xml.etree.ElementTree as ET
@@ -194,9 +403,15 @@ class ArxivAPI:
                     papers.append(paper)
 
                 return papers
-        except Exception as e:
-            print(f"arXiv API error: {e}", file=sys.stderr)
-            return []
+
+    @staticmethod
+    def search_papers(query: str, max_results: int = 100) -> List[Dict]:
+        """Search papers via arXiv API with retry mechanism."""
+        return retry_api_call(
+            ArxivAPI._search_papers_impl,
+            query=query, max_results=max_results,
+            max_retries=3, retry_delay=2
+        )
 
 
 class CrossRefAPI:
@@ -205,8 +420,8 @@ class CrossRefAPI:
     BASE_URL = "https://api.crossref.org/works"
 
     @staticmethod
-    def search_papers(query: str, rows: int = 100, filter_year: str = None) -> List[Dict]:
-        """Search papers via CrossRef API."""
+    def _search_papers_impl(query: str, rows: int = 100, filter_year: str = None) -> List[Dict]:
+        """Internal implementation of CrossRef API search."""
         params = {
             "query": query,
             "rows": rows,
@@ -216,9 +431,31 @@ class CrossRefAPI:
             params["filter"] = f"from-pub-date:{filter_year}"
 
         url = f"{CrossRefAPI.BASE_URL}?{urlencode(params)}"
+        request = Request(url, headers={"User-Agent": USER_AGENT})
 
-        try:
-            request = Request(url, headers={"User-Agent": USER_AGENT})
+        # Use proxy opener if available
+        if URL_OPENER:
+            with URL_OPENER.open(request, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                items = data.get("message", {}).get("items", [])
+
+                papers = []
+                for item in items:
+                    paper = {
+                        "title": " ".join(item.get("title", [])),
+                        "authors": [f"{a.get('given', '')} {a.get('family', '')}"
+                                   for a in item.get("author", [])],
+                        "published": item.get("published-print", {}).get("date-time", ""),
+                        "journal": item.get("container-title", [""])[0],
+                        "doi": item.get("DOI", ""),
+                        "type": item.get("type", ""),
+                        "abstract": item.get("abstract", ""),
+                        "source": "CrossRef"
+                    }
+                    papers.append(paper)
+
+                return papers
+        else:
             with urlopen(request, timeout=30, context=SSL_CONTEXT) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 items = data.get("message", {}).get("items", [])
@@ -239,9 +476,15 @@ class CrossRefAPI:
                     papers.append(paper)
 
                 return papers
-        except Exception as e:
-            print(f"CrossRef API error: {e}", file=sys.stderr)
-            return []
+
+    @staticmethod
+    def search_papers(query: str, rows: int = 100, filter_year: str = None) -> List[Dict]:
+        """Search papers via CrossRef API with retry mechanism."""
+        return retry_api_call(
+            CrossRefAPI._search_papers_impl,
+            query=query, rows=rows, filter_year=filter_year,
+            max_retries=3, retry_delay=2
+        )
 
 
 # ==================== Paper Search Engine ====================
@@ -416,7 +659,11 @@ class PaperSearchEngine:
         domain_priority = DOMAIN_SOURCE_PRIORITY.get(self.domain, DOMAIN_SOURCE_PRIORITY["general"])
 
         # 按优先级调用数据源（改进2：使用固定的api_request_limit确保数据充足）
-        for source_name in domain_priority:
+        for source_index, source_name in enumerate(domain_priority):
+            # 添加延迟避免429错误（每个API调用间隔1秒）
+            if source_index > 0:
+                time.sleep(1)
+
             if source_name == "Semantic Scholar":
                 # Semantic Scholar: 质量最高，有引用数据
                 s2_papers = SemanticScholarAPI.search_papers(
@@ -685,10 +932,20 @@ Examples:
     if args.output:
         with open(args.output, 'w', encoding='utf-8') as f:
             f.write(output)
-        print(f"✅ Results written to {args.output}", file=sys.stderr)
+        print(f"[OK] Results written to {args.output}", file=sys.stderr)
         return 0
     else:
-        print(output)
+        # Print with UTF-8 encoding support
+        try:
+            print(output)
+        except UnicodeEncodeError:
+            # Fallback: write to temp file and print file path
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.json', delete=False) as f:
+                f.write(output)
+                temp_file = f.name
+            print(f"Output contains UTF-8 characters. Written to: {temp_file}", file=sys.stderr)
+            print(f"Read with: type {temp_file}", file=sys.stderr)
         return 0 if result.get("status") == "success" else 1
 
 

@@ -1,13 +1,13 @@
 ---
 name: paper-email-service
-description: "Complete automated research workflow: search academic papers + generate PDF report + send email. Use when user wants: research report, paper search with email, literature review, academic updates, scheduled research reports, automated paper notifications. Keywords: 论文报告, 学术邮件, 研究报告, 文献检索, paper report, email papers."
+description: "Complete automated research workflow: search academic papers + generate Markdown report + send email. Use when user wants: research report, paper search with email, literature review, academic updates, scheduled research reports, automated paper notifications. Keywords: 论文报告, 学术邮件, 研究报告, 文献检索, paper report, email papers."
 version: 1.0.0
 author: agent-scholar
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [academic, research, automation, email, scheduling, integration, papers, report, literature, pdf, workflow]
-    category: my-category
+    tags: [academic, research, automation, email, scheduling, integration, papers, report, literature, markdown, workflow]
+    category: academic
 required_environment_variables:
   - name: GMAIL_ADDRESS
     prompt: "Your Gmail address (if using Gmail)"
@@ -83,7 +83,7 @@ optional_environment_variables:
 
 **单次报告生成 / One-Time Report**：
 - "生成一份XX领域的最新研究报告发送到我邮箱"
-- "帮我搜索最新论文并生成PDF报告发邮件"
+- "帮我搜索最新论文并生成Markdown报告发邮件"
 - "检索transformer在NLP中的应用文献，制作报告发送"
 - "生成一份人工智能领域的研究成果报告"
 - "搜索XX论文并发送到我的邮箱"
@@ -130,14 +130,60 @@ optional_environment_variables:
 1. **一键式学术报告生成**：从检索到发送，全流程自动化
 2. **灵活的参数配置**：支持领域、时间范围、文献数量等定制
 3. **定时任务管理**：支持按周期自动执行
-4. **专业的PDF报告**：包含封面、论文列表、趋势分析
+4. **专业的Markdown报告**：包含深度研究趋势分析、创新模式识别、研究热点聚类和时间演进分析
 5. **智能错误处理**：提供针对性解决方案
 6. **用户友好配置**：环境变量 + 配置文件混合管理
 
 ### 集成技能
 - **paper-search**：多源学术论文检索（Semantic Scholar、arXiv、CrossRef）
-- **report-generator**：专业学术PDF报告生成
-- **email-sender**：Gmail邮件自动发送（支持附件）
+- **report-generator**：专业学术Markdown报告生成（包含深度研究趋势分析）
+- **email-sender**：Gmail邮件自动发送（支持Markdown附件）
+
+## Markdown Report Structure
+
+**生成的Markdown报告包含完整的深度分析章节**：
+
+### 1. 封面页
+- 报告标题（基于检索主题）
+- 检索主题、检索时间、文献数量
+- 数据源信息
+- 生成机构：Hermes Agent 学术检索系统
+
+### 2. 检索概况
+- 检索主题和查询语句
+- 筛选条件（时间范围、文献类型等）
+- 数据源覆盖范围
+- 结果统计（文献数量、来源分布）
+
+### 3. 核心论文列表
+每篇论文必须包含：
+- 论文标题
+- 作者列表（前5位，如超过显示总数）
+- 发表年份
+- 期刊/会议名称
+- DOI 链接
+- 引用量（如有）
+- 摘要（前500字）
+- 原始URL
+
+### 4. 深度研究趋势分析
+- 创新模式分析（新颖性、理论、方法论、性能、应用、集成）
+- 研究热点聚类（Top 10研究集群，代表性论文）
+- 时间演进分析（年度趋势，新兴关键词，方法论演进）
+- 研究空白识别（方法论、应用、理论空白）
+- 跨学科分析（跨学科研究检测和融合机会）
+
+### 5. 未来方向建议
+- 优先研究领域（基于热点和空白的战略建议）
+- 影响时间线（短期、中期、长期预期发展）
+
+### 6. 参考文献
+- 按 GB/T 7714-2015 格式排序输出所有论文
+- 格式示例：`[1] 作者. 论文标题. 期刊名, 年份. DOI: xxxxx`
+
+**重要**：报告包含智能提取的关键见解、方法论分析和趋势预测。
+
+---
 
 ## Procedure
 
@@ -151,7 +197,7 @@ optional_environment_variables:
 - **时间范围**（可选）：默认近1年，支持 `1y/3y/5y/10y/unlimited`
 - **文献数量**（可选）：默认10篇
 - **收件邮箱**（可选）：使用默认配置中的邮箱
-- **报告格式**（可选）：默认PDF
+- **报告格式**（自动）：增强Markdown格式（包含深度趋势分析）
 
 #### Step 2: 展示确认
 
@@ -164,7 +210,7 @@ optional_environment_variables:
 - 文献数量：10篇
 - 领域优化：教育技术
 - 发送到：user@example.com（默认邮箱）
-- 报告格式：PDF
+- 报告格式：增强Markdown（深度趋势分析）
 
 ❓ 需要调整参数吗？
 回复"确认"开始生成，或说明需要修改的部分。
@@ -182,16 +228,17 @@ optional_environment_variables:
    ✓ 数据源：Semantic Scholar, arXiv
    ✓ 时间范围：2025-07-01 至 2026-07-01
 
-步骤2️⃣ : 正在生成PDF报告...
+步骤2️⃣ : 正在生成Markdown报告...
    ✓ 生成封面页
    ✓ 添加论文列表
    ✓ 生成趋势分析
    ✓ 完成参考文献
+   ✓ Markdown文件：AI_research_report_20260701.md
 
 步骤3️⃣ : 正在发送邮件...
    ✓ 邮件主题：📚 大语言模型在教育中的应用 学术报告 - 2026-07-01
    ✓ 收件人：user@example.com
-   ✓ 附件：AI_research_report_20260701.pdf
+   ✓ 附件：AI_research_report_20260701.md
    ✓ 发送成功
 ```
 
@@ -208,7 +255,7 @@ optional_environment_variables:
 - 主要来源：Computers & Education, IEEE Transactions on Learning Technologies
 - 高引用论文：3篇（引用量>50）
 
-💾 本地保存：/tmp/AI_research_report_20260701.pdf
+💾 本地保存：/tmp/AI_research_report_20260701.md
 📧 邮件已发送，请查收。
 ```
 
@@ -289,7 +336,7 @@ python ${HERMES_SKILL_DIR}/../my-category/email-sender/scripts/send_email.py \
 📧 邮件配置：
 - 收件人：user@example.com
 - 主题：📚 AI周报 - {date}
-- 格式：PDF附件
+- 格式：Markdown附件（.md文件）
 
 ❓ 需要调整吗？回复"确认"创建任务，或说明需要修改的部分。
 ```
@@ -413,7 +460,7 @@ search_defaults:
 
 # 默认报告参数
 report_defaults:
-  format: "pdf"              # 报告格式：pdf/markdown
+  format: "markdown"         # 报告格式：markdown（与PDF内容相同）
   language: "bilingual"      # 语言偏好
   include_analysis: true     # 包含趋势分析
   include_references: true   # 包含参考文献
@@ -747,7 +794,7 @@ Agent: [按用户指示执行5年检索]
 5. 设置邮件发送
 6. 确认任务创建
 
-结果：每个周一自动收到包含近7天AI论文的PDF报告
+结果：每个周一自动收到包含近7天AI论文的Markdown报告（.md文件）
 ```
 
 ### 场景2：特定领域的定期文献更新
@@ -772,8 +819,8 @@ Agent: [按用户指示执行5年检索]
 助手执行：
 1. 单次工作流执行
 2. 实时检索最新论文
-3. 生成专业PDF报告
-4. 立即发送邮件
+3. 生成专业Markdown报告（与PDF内容相同）
+4. 立即发送邮件（.md文件附件）
 
 结果：几分钟后收到专题研究报告，包含最新transformer在NLP中的应用
 ```
@@ -836,8 +883,8 @@ echo $env:GMAIL_APP_PASSWORD
 # 测试邮件发送
 python ../email-sender/scripts/send_email.py --to $env:GMAIL_ADDRESS --subject "测试" --body-file "test.txt" --body-type plain
 
-# 验证PDF生成
-python ../report-generator/scripts/generate_report.py --input test_papers.json --output test.pdf
+# 验证Markdown生成
+python ../report-generator/scripts/generate_report.py --input test_papers.json --output test.md
 
 # 验证论文检索
 python ../paper-search/scripts/paper_search.py --topic "test" --max-results 1
@@ -854,7 +901,7 @@ python ../paper-search/scripts/paper_search.py --topic "test" --max-results 1
 
 ### 数据流转
 ```
-用户输入 → paper_search (JSON) → report_generator (PDF) → email_sender (邮件)
+用户输入 → paper_search (JSON) → report_generator (Markdown) → email_sender (邮件 + .md附件)
 ```
 
 ### 临时文件管理

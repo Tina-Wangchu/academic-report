@@ -84,7 +84,75 @@ class WorkflowExecutor:
     @safe_execute(max_retries=3, exceptions_to_retry=(PaperSearchError,))
     def execute_paper_search(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        执行论文检索
+        执行智能论文检索（解决搜索能力低下问题）
+
+        修复4个核心问题：
+        1. 多数据源（同行评审期刊、会议报告、顶会顶刊）
+        2. 智能筛选（多维度、去重、保留最突破创新）
+        3. 真实时间范围（真正7天综合考量）
+        4. 标准搜索优先（避免降级搜索）
+
+        Args:
+            params: 检索参数
+
+        Returns:
+            高质量论文数据列表
+        """
+        print("🔍 步骤1/3: 执行智能多数据源检索...")
+
+        try:
+            # 导入智能搜索执行器
+            from intelligent_search_executor import IntelligentSearchExecutor
+
+            executor = IntelligentSearchExecutor(self.skill_paths, self.temp_dir)
+
+            # 执行智能搜索（不使用降级）
+            papers = executor.execute_multi_source_search(params)
+
+            if not papers:
+                raise PaperSearchError("智能搜索未找到相关论文")
+
+            # 格式化论文数据
+            formatted_papers = DataFormatter.format_paper_data(papers)
+
+            print(f"   ✓ 最终结果: {len(formatted_papers)} 篇高质量论文")
+
+            # 显示检索统计
+            if formatted_papers:
+                years = [p.get('year', 0) for p in formatted_papers if p.get('year', 0) > 0]
+                if years:
+                    print(f"   ✓ 时间跨度: {min(years)} - {max(years)}")
+
+                sources = {}
+                for paper in formatted_papers:
+                    source = paper.get('source', 'Unknown')
+                    sources[source] = sources.get(source, 0) + 1
+
+                print(f"   ✓ 数据源分布: {dict(sources)}")
+
+                # 显示质量指标
+                citation_papers = [p for p in formatted_papers if p.get('citation_count', 0) > 10]
+                recent_papers = [p for p in formatted_papers if p.get('year', 0) >= 2023]
+
+                print(f"   ✓ 质量指标: {len(citation_papers)} 篇高引用, {len(recent_papers)} 篇最新研究")
+
+            return formatted_papers
+
+        except ImportError:
+            # 如果智能执行器不可用，回退到原始方法
+            print("   ⚠️ 智能执行器不可用，使用标准搜索")
+            return self.execute_standard_paper_search(params)
+        except subprocess.TimeoutExpired:
+            raise PaperSearchError("论文检索超时（5分钟），请检查网络连接")
+        except json.JSONDecodeError as e:
+            raise PaperSearchError(f"解析检索结果失败: {str(e)}")
+        except Exception as e:
+            error_info = self.error_handler.handle_error(e, {'step': 'paper_search'})
+            raise PaperSearchError(error_info['error_message'])
+
+    def execute_standard_paper_search(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        执行标准论文检索（备用方法）
 
         Args:
             params: 检索参数
@@ -92,7 +160,7 @@ class WorkflowExecutor:
         Returns:
             论文数据列表
         """
-        print("🔍 步骤1/3: 正在检索学术论文...")
+        print("   执行标准检索...")
 
         try:
             # 构建检索命令
@@ -105,10 +173,10 @@ class WorkflowExecutor:
             cmd = [
                 sys.executable, str(search_script),
                 '--topic', params['topic'],
-                '--time-range', params.get('time_range', '1y'),
-                '--max-results', str(params.get('max_results', 10)),
+                '--time-range', params.get('time_range', '7d'),  # 默认7天
+                '--max-results', str(params.get('max_results', 30)),  # 获取更多结果
                 '--domain', params.get('domain', 'general'),
-                '--sort-by', params.get('sort_by', 'citation_count'),
+                '--sort-by', 'publication_date',  # 按时间排序
                 '--output-format', 'json'
             ]
 
@@ -123,7 +191,7 @@ class WorkflowExecutor:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5分钟超时
+                timeout=300,
                 encoding='utf-8'
             )
 
@@ -139,28 +207,10 @@ class WorkflowExecutor:
 
             print(f"   ✓ 找到 {len(formatted_papers)} 篇相关论文")
 
-            # 显示检索统计
-            if formatted_papers:
-                years = [p.get('year', 0) for p in formatted_papers if p.get('year', 0) > 0]
-                if years:
-                    print(f"   ✓ 时间范围: {min(years)} - {max(years)}")
-
-                sources = {}
-                for paper in formatted_papers:
-                    source = paper.get('source', 'Unknown')
-                    sources[source] = sources.get(source, 0) + 1
-
-                print(f"   ✓ 数据源: {', '.join(sources.keys())}")
-
             return formatted_papers
 
-        except subprocess.TimeoutExpired:
-            raise PaperSearchError("论文检索超时（5分钟），请检查网络连接")
-        except json.JSONDecodeError as e:
-            raise PaperSearchError(f"解析检索结果失败: {str(e)}")
         except Exception as e:
-            error_info = self.error_handler.handle_error(e, {'step': 'paper_search'})
-            raise PaperSearchError(error_info['error_message'])
+            raise PaperSearchError(f"标准检索失败: {str(e)}")
 
     @safe_execute(max_retries=2, exceptions_to_retry=(ReportGenerationError,))
     def execute_report_generation(self, papers: List[Dict[str, Any]], params: Dict[str, Any]) -> str:

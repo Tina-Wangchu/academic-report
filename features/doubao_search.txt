@@ -1,0 +1,71 @@
+# 近7天（2026.06.30–2026.07.06）统计学领域最新研究报告汇总
+数据来源：arXiv统计学分区本周新投稿、JASA顶刊线上新发、行业量化统计报告，覆盖**统计理论、因果推断、贝叶斯计算、AI统计、生物医学统计、经济量化**六大方向，全部为本周公开成果。
+
+## 一、arXiv本周核心统计学预印论文（2026.6.30–7.3 新增）
+### 1. 因果推断与观测数据方法论（stat.ME）
+1. **Residual-on-Residual Regression as a Tool for Effect Estimation in Observational Data**
+    编号：arXiv:2606.30976｜发布：6.30
+    核心：提出残差对残差回归框架，解决观测数据混杂偏倚，双重稳健效应估计，适配流行病学、社会科学数据，附模拟与真实临床案例。
+2. **Inferring Comprehensive Cohort Causal Effects with Unmeasured Confounding & Missing Outcomes**
+    编号：arXiv:2606.28741｜发布：6.30
+    创新：处理未观测混杂+结局缺失双难题的队列因果推断，17页理论证明，医疗队列实证验证。
+3. **Inference for Group Interaction Experiments**
+    编号：arXiv:2607.02385｜发布：7.3
+    交叉计量+统计：群体交互实验的稳健统计推断，修正传统交互项方差低估问题，适用于田野随机试验。
+
+### 2. 高维张量、非凸正则统计建模
+**Exponential-Family Tensor Completion via Nonconvex Dual Total-Variation Regularization**
+编号：arXiv:2606.30958｜发布：6.30
+    作者：曹文飞、赵启斌等华人团队
+    亮点：指数族张量补全新非凸TV正则，解决推荐系统、影像高维稀疏张量缺失，收敛性理论证明，优于传统凸优化张量方法。
+
+### 3. 大模型LLM统计理论与不确定性量化（stat.ML）
+1. **The Dual Nature of LLM Persona: Aggregated Tendencies and Frame-Dependent Geometry**
+    编号：arXiv:2607.02368｜7.3
+    统计视角解析大模型人格偏差：提出几何统计框架量化prompt框架对模型输出分布的扰动，可用于LLM输出校准与鲁棒性检验。
+2. **Unveiling the Non-Monotonic Effect of Privacy on Generalization under Byzantine Robustness**
+    arXiv:2607.01492｜7.3
+    差分隐私+统计泛化误差：证明隐私预算与模型泛化性能非单调关系，提供分布式学习统计误差界。
+3. **The Agentic Garden of Forking Paths**
+    arXiv:2607.01507｜7.3
+    Zou James团队：统计分叉路径问题拓展至AI智能体，量化多智能体决策中的p-hacking与多重检验偏倚，给出校正统计量。
+
+### 4. 生物医学/影像应用统计（stat.AP）
+**Masked complex non-decimated wavelet features for patient-level classification of contrast-enhanced mammography**
+arXiv:2607.02394｜7.3
+    29页医学统计报告：小波复合特征统计分类乳腺造影影像，提供完整开源代码，解决小样本医学影像分类置信区间缺失问题。
+
+### 5. 统计计算与贝叶斯MCMC
+**Spectral subsampling MCMC for Lévy-driven continuous-time ARMA models**
+核心：昂贵似然函数下的谱子采样MCMC，大幅降低连续时序贝叶斯推断算力，金融、气候时序适用。
+
+## 二、国际顶刊JASA本周线上新发（2026.06.29 正式上线）
+1. **Extracting Interpretable Models from Tree Ensembles: Computational and Statistical Perspectives**
+    方向：可解释统计学习，提出基于损失分解的树模型统计显著性检验，解决黑盒模型变量可信度问题。
+2. **Minimum Volume Conformal Sets for Multivariate Regression**
+    作者：Michael I. Jordan团队
+    突破：多元回归共形预测最小体积区间，有限样本保证，颠覆传统分位数共形方法，工业预测落地性强。
+3. **Genetically Informed Brain Parcellation Through Structured Multi-Task Modeling**
+    生物统计多任务结构化建模，脑影像+基因联合统计分层模型，降低多维组学多重检验错误率。
+4. **Accounting for Measurement Bias: Framework for Cross-Country Education Assessment Ranking**
+    调查统计：大规模测评数据测量偏差校正统计框架，解决跨国排名系统性误差。
+
+## 三、国内机构量化统计行业研究报告（7.5 最新发布）
+### 东吴证券宏观量化统计周报（260705）
+1. 统计建模主题：消费、基建、地产高频数据时序统计监测体系
+2. 核心统计方法：季节性分解、异方差时序回归、领先指标动态筛选模型
+3. 实证结论：6月社零同比承压但降幅收窄；建材、螺纹钢需求统计环比改善；土地供应时序统计显著回升
+4. 数据工具：WIND高频面板数据+滚动窗口统计显著性检验，附完整统计指标测算表。
+
+## 四、本周统计学研究热点总览
+1. **因果推断持续爆发**：聚焦未观测混杂、缺失数据、群体交互实验三大现实痛点，双重稳健估计成主流改进方向；
+2. **LLM统计校准**：从分布几何、多重检验、隐私泛化三个维度建立大模型统计评价体系；
+3. **高维张量/共形预测**：非凸正则张量补全、Jordan团队最小体积共形区间为本周理论突破；
+4. **应用落地**：医学影像小波统计、跨国测评偏差校正、宏观经济高频时序统计三类工程化报告集中产出。
+
+## 五、检索渠道（可自行下载原文）
+1. arXiv本周统计预印总页：https://arxiv.org/list/stat/pastweek
+2. JASA 2026年线上新刊：https://amstat.tandfonline.com/toc/uasa20/0/0
+3. 国内量化统计研报：迈博汇金、Wind研报库
+
+需要我把上述论文整理成一份**标准参考文献列表（含arXiv编号、标题、摘要核心句）** 方便你直接引用吗？
