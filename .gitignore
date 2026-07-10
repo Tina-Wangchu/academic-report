@@ -50,6 +50,7 @@ paper-skill/report-generator/scripts/test_*.pdf
 paper-skill/report-generator/scripts/test_*.json
 
 # Root temp files
+prompt
 HERMES_API_LIMIT_FIX_COMPLETE.md
 HERMES_FIX_COMPLETE_GUIDE.md
 HERMES_MARKDOWN_FIX_FINAL.bat
@@ -63,3 +64,13 @@ paper-search-quick-fix.patch
 # OS files
 Thumbs.db
 .DS_Store
+
+# Residual data in skills/academic (keep clean for installation)
+skills/academic/**/logs/
+skills/academic/**/__pycache__/
+skills/academic/**/real_search_results.json
+skills/academic/**/search_log.txt
+skills/academic/**/test_state.json
+skills/academic/**/*.pdf
+skills/academic/**/*.html
+skills/academic/**/templates/

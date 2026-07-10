@@ -1,0 +1,193 @@
+# Paper Email Service 默认配置
+# 这是默认配置模板，建议用户复制为 user_config.yaml 并根据需要修改
+
+service:
+  name: "Paper Email Service"
+  version: "1.0.0"
+  debug: false
+
+# 默认检索参数
+search_defaults:
+  time_range: "1y"          # 默认时间范围：近1年
+  max_results: 10          # 默认最大结果数
+  sort_by: "citation_count" # 默认排序方式：relevance/citation_count/publish_date
+  domain: "general"         # 默认领域：general/ai/statistics/finance
+  output_format: "json"     # 输出格式：json/markdown/csv
+  language: "bilingual"      # 语言偏好：zh/en/bilingual
+
+# 默认报告参数
+report_defaults:
+  format: "html"             # 报告格式：html（推荐，美观无编码问题）/markdown/pdf
+  include_analysis: true     # 包含趋势分析
+  include_references: true   # 包含参考文献
+  language: "bilingual"      # 报告语言
+
+# 默认邮件参数
+email_defaults:
+  from_name: "Hermes 学术助手"
+  body_type: "html"          # 邮件格式：html/plain
+  subject_template: "📚 {topic} 学术报告 - {date}"
+  email_template: "default"  # 邮件模板：default/simple
+
+# 默认收件人配置（用户应该修改此项）
+default_recipient:
+  email: "user@example.com"    # 请修改为您的邮箱地址
+  name: "研究学者"              # 请修改为您的姓名
+
+# 任务执行配置
+task_settings:
+  temp_dir: "/tmp/paper_email_service"  # 临时文件目录
+  cleanup_temp: true                  # 执行后清理临时文件
+  retry_on_failure: true            # 失败重试
+  max_retries: 2                   # 最大重试次数
+  retry_delay: [5, 10, 30]          # 重试延迟（秒）
+
+# 日志配置
+logging:
+  level: "INFO"                  # 日志级别：DEBUG/INFO/WARNING/ERROR
+  file: "logs/service.log"       # 日志文件
+  max_size_mb: 10              # 单个日志文件最大10MB
+  backup_count: 3              # 保留3个备份文件
+  console_output: true         # 控制台输出
+
+# 预设任务模板（这些是常用的任务配置，用户可以基于这些创建自己的定时任务）
+presets:
+  weekly_ai_report:
+    name: "AI领域周报"
+    description: "每周发送AI领域的最新研究论文报告"
+    schedule: "0 9 * * 1"   # 每周一上午9点
+    config:
+      topic: "artificial intelligence and machine learning"
+      keywords: "AI,machine learning,deep learning,neural networks"
+      time_range: "7d"         # 近7天
+      max_results: 15
+      domain: "ai"
+      sort_by: "publish_date"
+      email_subject: "📚 AI周报 - {date}"
+
+  biweekly_ml_report:
+    name: "机器学习双周报"
+    description: "每两周发送机器学习领域的最新研究"
+    schedule: "0 8 * * 1,3"  # 每周一、三上午8点
+    config:
+      topic: "machine learning applications"
+      keywords: "machine learning,ML,artificial intelligence"
+      time_range: "14d"        # 近14天
+      max_results: 20
+      domain: "ai"
+      email_subject: "📚 ML双周报 - {date}"
+
+  monthly_statistics:
+    name: "统计学月报"
+    description: "每月发送统计学领域的最新研究"
+    schedule: "0 10 1 * *"  # 每月1号上午10点
+    config:
+      topic: "statistical methods and decision theory"
+      keywords: "statistics,decision theory,bayesian analysis"
+      time_range: "30d"        # 近30天
+      max_results: 20
+      domain: "statistics"
+      sort_by: "citation_count"
+      email_subject: "📊 统计学月报 - {date}"
+
+  daily_ai_briefing:
+    name: "AI每日简报"
+    description: "每天发送AI领域的最新论文（少量，快速阅读）"
+    schedule: "0 8 * * *"  # 每天上午8点
+    config:
+      topic: "artificial intelligence"
+      keywords: "AI"
+      time_range: "1d"         # 近1天
+      max_results: 5
+      domain: "ai"
+      email_subject: "📰 AI每日简报 - {date}"
+      format: "markdown"         # 使用Markdown格式更快
+
+  quarterly_review:
+    name: "季度文献综述"
+    description: "每季度发送该领域的综合文献综述报告"
+    schedule: "0 9 1 */3 *"  # 每季度第一天上午9点
+    config:
+      topic: "literature review"
+      time_range: "90d"        # 近90天（一个季度）
+      max_results: 30
+      email_subject: "📚 季度综述 - {date}"
+
+# 常用领域预设配置（可以快速使用）
+domain_presets:
+  ai:
+    domain: "ai"
+    keywords: "artificial intelligence,machine learning,deep learning,neural networks"
+    data_source_preference: ["arXiv", "Semantic Scholar"]  # 优先使用预印本
+
+  statistics:
+    domain: "statistics"
+    keywords: "statistical methods,decision theory,bayesian inference,hypothesis testing"
+    data_source_preference: ["CrossRef", "Semantic Scholar"]  # 优先使用期刊
+
+  finance:
+    domain: "finance"
+    keywords: "financial statistics,econometrics,quantitative finance,risk management"
+    data_source_preference: ["CrossRef"]  # 优先使用期刊
+
+  computer_science:
+    domain: "cs"
+    keywords: "computer science,software engineering,algorithms,data structures"
+    data_source_preference: ["arXiv", "Semantic Scholar"]
+
+# 邮件模板配置
+email_templates:
+  default:
+    subject_template: "📚 {topic} 学术报告 - {date}"
+    body_template: "templates/email_template.html"
+
+  simple:
+    subject_template: "{topic} - {date}"
+    body_template: "templates/email_simple.html"
+
+  detailed:
+    subject_template: "📚 {topic} 详细学术报告 - {date}（{papers_count}篇论文）"
+    body_template: "templates/email_detailed.html"
+
+# 错误处理配置
+error_handling:
+  network_timeout: 30          # 网络超时时间（秒）
+  max_retry_attempts: 3      # 最大重试次数
+  retry_backoff: [2, 5, 15]   # 重试延迟（秒）
+  save_debug_info: true        # 保存调试信息
+  notify_on_failure: true     # 失败时发送通知邮件
+
+# 数据质量配置
+data_quality:
+  min_papers_for_email: 1    # 至少找到1篇论文才发送邮件
+  max_papers_for_email: 50  # 超过50篇时警告用户
+  preferred_recent_ratio: 0.3  # 偏好最近论文占比（30%以上）
+  abstract_max_length: 500     # 摘要最大长度（字符）
+
+# 报告格式配置
+report_format:
+  pdf:
+    font_size: 11
+    line_spacing: 1.15
+    margin: "2cm"
+    page_number: true
+    table_of_contents: true
+
+  markdown:
+    max_abstract_length: 500
+    include_metadata: true
+    emoji: "minimal"          # minimal/moderate/none
+
+# 安全配置
+security:
+  check_gmail_credentials: true   # 启动时检查Gmail凭据
+  validate_email_address: true    # 验证邮箱地址格式
+  sanitize_attachments: true      # 清理附件路径
+  max_email_size_mb: 50          # 最大邮件大小（MB）
+
+# 调试配置
+debug:
+  show_full_command: false      # 显示完整命令
+  save_temporary_files: false  # 保留临时文件用于调试
+  verbose_subprocess: false    # 详细子过程输出
+  log_api_calls: false         # 记录API调用

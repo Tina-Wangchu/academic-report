@@ -1,0 +1,186 @@
+# 用户配置文件示例
+# 复制此文件为 user_config.yaml 并根据需要修改
+
+# ============================================
+# 用户个人信息
+# ============================================
+user_profile:
+  name: "张三"                              # 您的姓名
+  email: "zhangsan@example.com"            # 您的邮箱地址
+  timezone: "Asia/Shanghai"                 # 时区设置
+
+# ============================================
+# 自定义默认参数（覆盖 default_config.yaml）
+# ============================================
+custom_defaults:
+  # 检索参数
+  time_range: "2y"                          # 覆盖默认的1y
+  max_results: 15                          # 覆盖默认的10
+  domain: "ai"                             # 覆盖默认的general
+  sort_by: "citation_count"               # 默认排序方式
+  output_format: "json"                     # 输出格式
+
+  # 报告参数
+  report_format: "pdf"                     # 报告格式：pdf/markdown
+  include_analysis: true                   # 包含趋势分析
+  include_references: true                 # 包含参考文献
+
+  # 邮件参数
+  email_body_type: "html"                  # 邮件格式：html/plain
+  from_name: "张三的学术助手"              # 发件人名称
+
+# ============================================
+# 收件人配置
+# ============================================
+recipients:
+  primary:
+    - email: "zhangsan@example.com"
+      name: "张三"
+  secondary:
+    - email: "colleague1@example.com"
+      name: "同事1"
+    - email: "colleague2@example.com"
+      name: "同事2"
+
+# 默认收件人（单独设置，向后兼容）
+default_recipient:
+  email: "zhangsan@example.com"
+  name: "张三"
+
+# ============================================
+# 自定义定时任务
+# ============================================
+custom_tasks:
+  - id: "my_daily_ai_briefing"
+    name: "我的每日AI简报"
+    description: "每天发送AI领域最新论文"
+    schedule: "0 8 * * *"                 # 每天上午8点
+    enabled: true
+    config:
+      topic: "artificial intelligence"
+      keywords: "AI,machine learning,deep learning"
+      time_range: "1d"                     # 近1天
+      max_results: 5                       # 少量论文，快速阅读
+      domain: "ai"
+      email_subject: "📰 AI每日简报 - {date}"
+
+  - id: "my_weekly_ml_report"
+    name: "机器学习周报"
+    description: "每周发送机器学习领域研究"
+    schedule: "0 9 * * 1"                 # 每周一上午9点
+    enabled: true
+    config:
+      topic: "machine learning applications"
+      keywords: "machine learning,ML,neural networks"
+      time_range: "7d"                     # 近7天
+      max_results: 20                      # 更多论文
+      domain: "ai"
+      sort_by: "publish_date"              # 按发布日期排序
+      email_subject: "📚 ML周报 - {date}"
+
+# ============================================
+# 特殊领域配置
+# ============================================
+domain_config:
+  ai:
+    enabled: true
+    preferred_sources: ["arXiv", "Semantic Scholar"]
+    keywords: "artificial intelligence,machine learning,deep learning"
+
+  statistics:
+    enabled: true
+    preferred_sources: ["CrossRef", "Semantic Scholar"]
+    keywords: "statistical methods,bayesian analysis,hypothesis testing"
+
+  finance:
+    enabled: false                          # 禁用金融领域
+    preferred_sources: ["CrossRef"]
+    keywords: "financial statistics,econometrics"
+
+# ============================================
+# 通知设置
+# ============================================
+notifications:
+  on_success: false                        # 成功时不发送通知
+  on_failure: true                         # 失败时发送通知
+  on_error: true                           # 错误时发送通知
+  notification_email: "admin@example.com"  # 通知邮箱
+
+# ============================================
+# 高级设置
+# ============================================
+advanced:
+  # 调试模式
+  debug_mode: false                        # 调试模式（详细日志）
+  save_temp_files: false                   # 保留临时文件
+
+  # 性能设置
+  max_concurrent_requests: 3              # 最大并发请求数
+  request_timeout: 30                      # 请求超时时间（秒）
+
+  # 重试设置
+  max_retries: 3                          # 最大重试次数
+  retry_delay: [5, 10, 30]                # 重试延迟（秒）
+
+  # 数据质量设置
+  min_papers_for_email: 1                # 至少找到1篇论文才发送邮件
+  max_papers_for_email: 50              # 超过50篇时警告用户
+
+# ============================================
+# 邮件模板自定义
+# ============================================
+email_templates:
+  custom:
+    subject_template: "🔬 {topic} 研究报告 - {date} ({papers_count}篇)"
+    body_template: "templates/email_custom.html"
+    signature: "祝研究顺利！\n您的AI助手"
+
+# ============================================
+# 集成设置
+# ============================================
+integrations:
+  # 学术API配置
+  semantic_scholar:
+    api_key_env: "SEMANTIC_SCHOLAR_API_KEY"    # 环境变量名
+    rate_limit: 100                            # 每分钟请求限制
+
+  arxiv:
+    enabled: true
+    rate_limit: 10
+
+  crossref:
+    enabled: true
+    rate_limit: 50
+
+  # 代理设置
+  proxy:
+    smtp_socks5_proxy_env: "SMTP_SOCKS_PROXY"  # 环境变量名
+    http_proxy_env: "HTTP_PROXY"               # HTTP代理环境变量
+    https_proxy_env: "HTTPS_PROXY"             # HTTPS代理环境变量
+
+# ============================================
+# 用户界面设置
+# ============================================
+ui_settings:
+  language: "zh-CN"                         # 界面语言
+  date_format: "%Y-%m-%d %H:%M:%S"           # 日期格式
+  timezone: "Asia/Shanghai"                  # 显示时区
+  theme: "light"                             # 主题：light/dark
+
+# ============================================
+# 备份和同步设置
+# ============================================
+backup:
+  enabled: true
+  backup_dir: "./backups"                   # 备份目录
+  backup_frequency: "daily"                # 备份频率
+  retain_backups: 7                        # 保留备份数量
+
+# ============================================
+# 安全设置
+# ============================================
+security:
+  encrypt_config: false                     # 加密配置文件
+  validate_ssl: true                        # 验证SSL证书
+  sanitize_input: true                      # 清理用户输入
+  max_email_size_mb: 25                    # 最大邮件大小（MB）
