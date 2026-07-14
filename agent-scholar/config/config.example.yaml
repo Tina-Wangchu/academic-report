@@ -1,0 +1,34 @@
+# Hermes Agent Academic Scholar Configuration Example
+# 复制此文件到 ~/.hermes/config.yaml 或使用 `hermes config set` 命令配置
+
+skills:
+  config:
+    academic:
+      # 默认语言设置
+      # en: 仅英文, zh: 仅中文, bilingual: 中英双语
+      default_language: bilingual
+
+      # 默认时间范围
+      # 1y: 近1年, 3y: 近3年, all: 不限
+      default_time_range: 3y
+
+      # 每个数据源最大结果数（10-200）
+      max_results: 50
+
+      # 默认邮件接收者
+      email_recipient: user@example.com
+
+      # 是否包含预印本（arXiv等）
+      include_preprints: true
+
+      # 最小引用量筛选
+      min_citation_count: 0
+
+      # 是否启用高被引筛选
+      filter_highly_cited: false
+
+      # 高被引阈值
+      highly_cited_threshold: 100
+
+      # 是否仅SCI/EI期刊
+      sci_ei_only: false

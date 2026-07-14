@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Generated reports & experiment output
+agent-scholar/scripts/reports/
+test/experiments/output/
+test/experiments/__pycache__/
+
+# Runtime data (在 ~/.hermes/ 下，不在本仓库；防御性排除)
+*.env
+.env
+email_log.json
+llm_cache_*.json
+academic_scholar_timestamps.json
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.tmp
