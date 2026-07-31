@@ -8,10 +8,32 @@ import smtplib
 import pytest
 import sys
 import os
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent-scholar', 'scripts'))
 
+import email_sender
 from email_sender import EmailSender
+
+
+@pytest.fixture(autouse=True)
+def _isolate_send_state(tmp_path, monkeypatch):
+    """所有用例把发送日志 + 冷却状态重定向到临时目录，绝不污染 ~/.hermes/。"""
+    monkeypatch.setattr(email_sender, "DEFAULT_LOG_PATH", tmp_path / "test_sends.jsonl")
+    monkeypatch.setattr(email_sender, "DEFAULT_COOLDOWN_PATH", tmp_path / "test_cooldown.json")
+    monkeypatch.delenv("EMAIL_SKIP_COOLDOWN", raising=False)
+
+
+def _set_cooldown(sender, user, consecutive, age_seconds=0):
+    """直接写入冷却状态文件（供测试构造确定的冷却场景）。"""
+    ts = (datetime.now().astimezone() - timedelta(seconds=age_seconds)).isoformat(timespec="seconds")
+    Path(sender.cooldown_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(sender.cooldown_path).write_text(
+        json.dumps({user: {"last_auth_fail_ts": ts,
+                           "consecutive_auth_fails": consecutive}}),
+        encoding="utf-8")
 
 
 # ---------------------------------------------------------------------- #
@@ -256,3 +278,403 @@ class TestPortRouting:
         assert EmailSender._is_ssl_port(465) is True
         assert EmailSender._is_ssl_port(587) is False
         assert EmailSender._is_ssl_port(25) is False
+
+
+# ---------------------------------------------------------------------- #
+# 代理自动识别 + 直连/代理回退
+# ---------------------------------------------------------------------- #
+
+def _socks():
+    """测试所需 pysocks；缺失则 skip（CI 无 pysocks 时跳过代理相关用例）。"""
+    pytest.importorskip("socks")
+    import socks
+    return socks
+
+
+class TestProxyDetection:
+    """测试代理 URL 解析与环境变量自动发现"""
+
+    def test_parse_schemes(self):
+        socks = _socks()
+        assert EmailSender._parse_proxy_url("socks5://127.0.0.1:7897", socks.SOCKS5, socks) \
+            == (socks.SOCKS5, "127.0.0.1", 7897)
+        assert EmailSender._parse_proxy_url("socks5h://10.0.0.1:1080", socks.SOCKS5, socks) \
+            == (socks.SOCKS5, "10.0.0.1", 1080)
+        assert EmailSender._parse_proxy_url("socks4://10.0.0.1:1080", socks.SOCKS5, socks)[0] \
+            == socks.SOCKS4
+        assert EmailSender._parse_proxy_url("http://127.0.0.1:7890", socks.SOCKS5, socks) \
+            == (socks.HTTP, "127.0.0.1", 7890)
+
+    def test_parse_bare_host_port(self):
+        socks = _socks()
+        assert EmailSender._parse_proxy_url("127.0.0.1:7897", socks.SOCKS5, socks) \
+            == (socks.SOCKS5, "127.0.0.1", 7897)
+
+    def test_parse_garbage_returns_none(self):
+        socks = _socks()
+        assert EmailSender._parse_proxy_url("garbage", socks.SOCKS5, socks) is None
+        assert EmailSender._parse_proxy_url("socks5://host", socks.SOCKS5, socks) is None  # 无端口
+
+    def test_detect_from_env(self, monkeypatch):
+        socks = _socks()
+        monkeypatch.setenv("SMTP_SOCKS_PROXY", "socks5://127.0.0.1:7897")
+        monkeypatch.setenv("ALL_PROXY", "socks5://10.0.0.1:1080")
+        monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:7890")
+        proxies = EmailSender(config_manager=FakeConfig())._detect_proxies(socks)
+        by_hp = {(h, p): t for (t, h, p) in proxies}
+        assert ("127.0.0.1", 7897) in by_hp
+        assert ("10.0.0.1", 1080) in by_hp
+        assert by_hp[("127.0.0.1", 7890)] == socks.HTTP
+
+    def test_detect_dedup(self, monkeypatch):
+        socks = _socks()
+        monkeypatch.setenv("SMTP_SOCKS_PROXY", "socks5://127.0.0.1:7897")
+        monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.1:7897")  # 同一代理
+        proxies = EmailSender(config_manager=FakeConfig())._detect_proxies(socks)
+        assert len(proxies) == 1
+
+
+class TestStrategyChain:
+    """测试策略清单构造与直连→代理回退"""
+
+    def test_direct_is_first_strategy(self):
+        labels = [lbl for lbl, _ in
+                  EmailSender(config_manager=FakeConfig())._build_strategies()]
+        assert labels[0] == "direct"
+
+    def test_env_proxy_added_after_direct(self, monkeypatch):
+        _socks()
+        monkeypatch.setenv("SMTP_SOCKS_PROXY", "socks5://127.0.0.1:7897")
+        labels = [lbl for lbl, _ in
+                  EmailSender(config_manager=FakeConfig())._build_strategies()]
+        assert labels[0] == "direct"
+        assert "socks5://127.0.0.1:7897" in labels
+        # 兜底本地探测总在最后
+        assert labels[-1] == "auto-local-socks"
+
+    def test_fallback_when_direct_connect_fails(self, monkeypatch, tmp_path):
+        """直连连接即失败 → 自动回退到代理策略并成功"""
+        _socks()
+        report = _write_report(tmp_path)
+        import email_sender
+        calls = {"n": 0}
+
+        def factory(host, port, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("direct blocked (e.g. GFW)")  # 直连失败
+            return FakeSMTP(host, port, timeout)             # 代理策略命中
+
+        monkeypatch.setattr(email_sender.smtplib, "SMTP", factory)
+        monkeypatch.setattr(email_sender.smtplib, "SMTP_SSL", factory)
+        monkeypatch.setenv("SMTP_SOCKS_PROXY", "socks5://127.0.0.1:9999")
+        sender = EmailSender(config_manager=FakeConfig(port=465),
+                             max_retries=1, retry_delay=0)
+        assert sender.send_report(str(report)) is True
+        assert calls["n"] >= 2  # 直连失败后走了代理策略
+
+    def test_direct_success_skips_proxy(self, monkeypatch, tmp_path):
+        """直连成功时不触碰代理策略（只创建 1 个连接）"""
+        _socks()
+        report = _write_report(tmp_path)
+        import email_sender
+        calls = {"n": 0, "local_probe": False}
+
+        def factory(host, port, timeout=None):
+            calls["n"] += 1
+            return FakeSMTP(host, port, timeout)
+
+        monkeypatch.setattr(email_sender.smtplib, "SMTP", factory)
+        monkeypatch.setattr(email_sender.smtplib, "SMTP_SSL", factory)
+        # 让本地探测立即失败（证明它没被需要）
+        def _no_probe(self, host, port):
+            calls["local_probe"] = True
+            raise ConnectionError("probe should not run when direct works")
+        monkeypatch.setattr(EmailSender, "_connect_auto_local_socks", _no_probe)
+        monkeypatch.setenv("SMTP_SOCKS_PROXY", "socks5://127.0.0.1:9999")
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        assert sender.send_report(str(report)) is True
+        assert calls["n"] == 1            # 只用了直连
+        assert calls["local_probe"] is False
+
+
+# ---------------------------------------------------------------------- #
+# 本地 SOCKS 端口探测 —— 回归保护
+# ---------------------------------------------------------------------- #
+
+class TestAutoLocalSocksProbe:
+    """
+    回归保护：_connect_auto_local_socks 的端口探测必须用模块级
+    _REAL_CREATE_CONNECTION，而不是 _REAL_SOCKET.create_connection
+    （socket 类上没有 create_connection，它是 socket 模块的函数）。
+    旧代码误用 _REAL_SOCKET.create_connection 导致直连失败时回退崩溃：
+      AttributeError: type object 'socket' has no attribute 'create_connection'
+    """
+
+    def test_real_socket_class_has_no_create_connection(self):
+        """不变量：_REAL_SOCKET 是 socket 类，其上无 create_connection；
+        _REAL_CREATE_CONNECTION 才是可调用的模块函数。"""
+        import email_sender
+        # _REAL_SOCKET 是类（type），不是模块
+        assert isinstance(email_sender._REAL_SOCKET, type)
+        assert not hasattr(email_sender._REAL_SOCKET, "create_connection")
+        # 模块级 create_connection 才存在且可调用
+        assert callable(email_sender._REAL_CREATE_CONNECTION)
+
+    def test_probe_uses_module_create_connection(self, monkeypatch):
+        """探测经 _REAL_CREATE_CONNECTION；即使 _REAL_SOCKET 故意没有
+        create_connection 也不报 AttributeError（旧 bug 会在此崩溃）。"""
+        _socks()  # _connect_auto_local_socks 需要 pysocks
+        import email_sender
+
+        open_port = 19999
+        # 只探测一个端口，保证确定性
+        monkeypatch.setattr(email_sender, "_LOCAL_SOCKS_PORTS", (open_port,))
+
+        # 模块级 create_connection：对 open_port 返回可关闭的假 socket
+        probed = {"called": False}
+
+        class _FakeSock:
+            def close(self):
+                pass
+
+        def _fake_create_connection(addr, timeout=None):
+            probed["called"] = True
+            if addr[1] == open_port:
+                return _FakeSock()
+            raise OSError("no listener")
+
+        monkeypatch.setattr(email_sender, "_REAL_CREATE_CONNECTION",
+                            _fake_create_connection)
+
+        # 故意把 _REAL_SOCKET 换成「没有 create_connection」的对象 ——
+        # 若代码误用 _REAL_SOCKET.create_connection，这里会 AttributeError
+        class _SentinelNoCC:
+            pass
+        monkeypatch.setattr(email_sender, "_REAL_SOCKET", _SentinelNoCC)
+
+        # _connect_socks 命中后返回假服务器（无需真实 SOCKS 握手）
+        socks_args = {}
+
+        def _fake_connect_socks(self, host, port, proxy):
+            socks_args["proxy"] = proxy
+            return FakeSMTP(host, port)
+
+        monkeypatch.setattr(EmailSender, "_connect_socks", _fake_connect_socks)
+
+        sender = EmailSender(config_manager=FakeConfig())
+        server = sender._connect_auto_local_socks("smtp.qq.com", 465)
+
+        # 探测确实走了模块级 create_connection
+        assert probed["called"] is True
+        # 且把探测到的端口作为 SOCKS5 本地代理传给 _connect_socks
+        assert socks_args["proxy"][0] == _socks().SOCKS5
+        assert socks_args["proxy"][1] == "127.0.0.1"
+        assert socks_args["proxy"][2] == open_port
+        assert isinstance(server, FakeSMTP)
+
+    def test_probe_skips_closed_ports(self, monkeypatch):
+        """所有端口都无人监听 → 抛 ConnectionError，而非 AttributeError。"""
+        _socks()
+        import email_sender
+        monkeypatch.setattr(email_sender, "_LOCAL_SOCKS_PORTS", (20001, 20002))
+
+        def _all_closed(addr, timeout=None):
+            raise OSError("refused")
+        monkeypatch.setattr(email_sender, "_REAL_CREATE_CONNECTION", _all_closed)
+
+        sender = EmailSender(config_manager=FakeConfig())
+        with pytest.raises(ConnectionError):
+            sender._connect_auto_local_socks("smtp.qq.com", 465)
+
+
+# ---------------------------------------------------------------------- #
+# 发送记录持久化日志（JSONL append-only）
+# ---------------------------------------------------------------------- #
+
+class TestSendLog:
+    """测试 _append_send_log：成功/失败都落一条；best-effort 不影响发送结果。"""
+
+    def test_log_appended_on_success(self, monkeypatch, tmp_path):
+        """发送成功 → 日志追加一条 status=success 的记录，含策略/收件人/报告名。"""
+        report = _write_report(tmp_path, name="cv_report.md")
+        patch_smtp(monkeypatch)
+        log_file = tmp_path / "sends.jsonl"
+        sender = EmailSender(config_manager=FakeConfig(),
+                             max_retries=1, retry_delay=0,
+                             log_path=str(log_file))
+        assert sender.send_report(str(report), recipient="to@x.com",
+                                  subject="测试主题") is True
+
+        lines = log_file.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["status"] if "status" in rec else rec["success"] is True
+        assert rec["success"] is True
+        assert rec["strategy"] == "direct"          # FakeConfig 默认 587 → direct 命中
+        assert rec["attempts"] == 1
+        assert rec["recipient"] == "to@x.com"
+        assert rec["subject"] == "测试主题"
+        assert rec["report"] == "cv_report.md"
+        assert rec["error"] is None
+        assert "ts" in rec                           # 带时间戳
+
+    def test_log_appended_on_failure(self, monkeypatch, tmp_path):
+        """发送失败（瞬时错误重试耗尽）→ 日志追加一条 success=false + error。"""
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch,
+                   send_excs=[smtplib.SMTPException("Connection unexpectedly closed")] * 5)
+        log_file = tmp_path / "sends.jsonl"
+        sender = EmailSender(config_manager=FakeConfig(),
+                             max_retries=3, retry_delay=0,
+                             log_path=str(log_file))
+        assert sender.send_report(str(report)) is False
+
+        rec = json.loads(log_file.read_text(encoding="utf-8").strip())
+        assert rec["success"] is False
+        assert rec["attempts"] == 3
+        assert "Connection unexpectedly closed" in rec["error"]
+        assert rec["error_type"] == "SMTPException"
+
+    def test_log_auth_failure_recorded(self, monkeypatch, tmp_path):
+        """认证失败也落一条，error_type=auth，attempts=1（认证错误不重试）。"""
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch,
+                   login_exc=smtplib.SMTPAuthenticationError(535, b"Login fail"))
+        log_file = tmp_path / "sends.jsonl"
+        sender = EmailSender(config_manager=FakeConfig(),
+                             max_retries=3, retry_delay=0,
+                             log_path=str(log_file))
+        assert sender.send_report(str(report)) is False
+
+        rec = json.loads(log_file.read_text(encoding="utf-8").strip())
+        assert rec["success"] is False
+        assert rec["error_type"] == "auth"
+        assert rec["attempts"] == 1
+
+    def test_log_write_failure_never_breaks_send(self, monkeypatch, tmp_path):
+        """日志路径不可写时，发送仍成功，异常不外泄（best-effort）。"""
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch)
+        # log_path 指向一个「已存在的目录」（open 会失败）—— 模拟写入异常
+        sender = EmailSender(config_manager=FakeConfig(),
+                             max_retries=1, retry_delay=0,
+                             log_path=str(tmp_path))  # tmp_path 是目录，open(a) 失败
+        # 发送不应因日志失败而抛错或返回 False
+        assert sender.send_report(str(report)) is True
+
+    def test_log_uses_default_path_when_none(self, tmp_path):
+        """未传 log_path → 用 DEFAULT_LOG_PATH（被 autouse fixture 重定向到 tmp）。"""
+        sender = EmailSender(config_manager=FakeConfig())
+        assert sender.log_path == email_sender.DEFAULT_LOG_PATH
+
+
+# ---------------------------------------------------------------------- #
+# 冷却守卫（auth 失败指数退避，跨进程；防止 agent 重跑轰炸 QQ 限频）
+# ---------------------------------------------------------------------- #
+
+class TestCooldown:
+    """测试冷却守卫：认证失败后退避，成功清零，可强制跳过。"""
+
+    def test_no_cooldown_initially(self, monkeypatch, tmp_path):
+        """无失败记录 → 冷却 0，可正常发送。"""
+        patch_smtp(monkeypatch)
+        report = _write_report(tmp_path)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        assert sender._cooldown_remaining("user@example.com") == 0.0
+        assert sender.send_report(str(report)) is True
+
+    def test_auth_failure_triggers_cooldown_and_blocks_next(self, monkeypatch, tmp_path):
+        """认证失败后：本次返回 False 并记冷却；紧接着的第二次发送被拦截、不再登录 QQ。"""
+        report = _write_report(tmp_path)
+        exc = smtplib.SMTPAuthenticationError(535, b"Login fail")
+        fakes = patch_smtp(monkeypatch, login_exc=exc)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=3, retry_delay=0)
+
+        # 第 1 次：认证失败（触发冷却，连续=1 → 冷却 30s）
+        assert sender.send_report(str(report)) is False
+        assert len(fakes) == 1                       # 只尝试 1 次登录（认证错不重试）
+        assert sender._cooldown_remaining("user@example.com") > 0   # 进入冷却
+
+        # 第 2 次：被冷却拦截，不再创建 SMTP 连接（不登录 QQ）
+        assert sender.send_report(str(report)) is False
+        assert len(fakes) == 1                       # 关键：没有第 2 次登录
+
+    def test_cooldown_escalates_exponentially(self, monkeypatch, tmp_path):
+        """连续失败次数越多，冷却越久：1→30s，2→60s，3→120s，上限 300s。"""
+        patch_smtp(monkeypatch)  # 不会真的发，只读冷却状态
+        sender = EmailSender(config_manager=FakeConfig())
+        for n, expect in [(1, 30), (2, 60), (3, 120), (4, 240), (5, 300), (9, 300)]:
+            _set_cooldown(sender, "user@example.com", consecutive=n, age_seconds=0)
+            rem = sender._cooldown_remaining("user@example.com")
+            # 刚记录，剩余≈满额；留 6s 容差吸收「写文件→读文件」I/O 耗时
+            assert expect - 6 <= rem <= expect, f"n={n} expect~{expect} got {rem}"
+
+    def test_cooldown_expires(self, monkeypatch, tmp_path):
+        """冷却时间过后 → 剩余 0，可重新发送。"""
+        patch_smtp(monkeypatch)
+        report = _write_report(tmp_path)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        _set_cooldown(sender, "user@example.com", consecutive=1, age_seconds=31)  # 30s 冷却已过
+        assert sender._cooldown_remaining("user@example.com") == 0.0
+        assert sender.send_report(str(report)) is True   # 冷却已过，正常发
+
+    def test_success_clears_cooldown(self, monkeypatch, tmp_path):
+        """冷却中但已过期、且本次发送成功 → 清零冷却状态。"""
+        patch_smtp(monkeypatch)
+        report = _write_report(tmp_path)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        _set_cooldown(sender, "user@example.com", consecutive=3, age_seconds=999)  # 早已过期
+        assert sender.send_report(str(report)) is True
+        # 成功后状态清零
+        state = sender._load_cooldown_state()
+        assert state["user@example.com"]["consecutive_auth_fails"] == 0
+
+    def test_skip_cooldown_env_bypasses(self, monkeypatch, tmp_path):
+        """EMAIL_SKIP_COOLDOWN=1 → 即使在冷却中也强制发送（手动/调试用）。"""
+        patch_smtp(monkeypatch)
+        report = _write_report(tmp_path)
+        monkeypatch.setenv("EMAIL_SKIP_COOLDOWN", "1")
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        _set_cooldown(sender, "user@example.com", consecutive=5, age_seconds=0)  # 满冷却中
+        assert sender._cooldown_remaining("user@example.com") == 0.0  # 被环境变量跳过
+        assert sender.send_report(str(report)) is True
+
+    def test_non_auth_failure_does_not_trigger_cooldown(self, monkeypatch, tmp_path):
+        """非认证错误（如 SMTPServerDisconnected 网络瞬时）不计入冷却——只有 auth 才退避。"""
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch,
+                   send_excs=[smtplib.SMTPServerDisconnected("Connection unexpectedly closed")] * 5)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=3, retry_delay=0)
+        assert sender.send_report(str(report)) is False
+        # 网络错误不触发冷却 → 下次仍可立即重试
+        assert sender._cooldown_remaining("user@example.com") == 0.0
+
+    def test_cooldown_writes_log_entry(self, monkeypatch, tmp_path, capsys):
+        """被冷却拦截时：写一条 error_type=cooldown 的日志，且 stdout 有提示。"""
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch)
+        log_file = tmp_path / "cd_sends.jsonl"
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0,
+                             log_path=str(log_file))
+        _set_cooldown(sender, "user@example.com", consecutive=2, age_seconds=0)  # 冷却 60s
+        assert sender.send_report(str(report)) is False
+        rec = json.loads(log_file.read_text(encoding="utf-8").strip())
+        assert rec["error_type"] == "cooldown"
+        assert rec["success"] is False
+        out = capsys.readouterr().out
+        assert "冷却" in out and "EMAIL_SKIP_COOLDOWN" in out   # 提示用户如何强制
+
+    def test_cooldown_print_failure_doesnt_crash(self, monkeypatch, tmp_path):
+        """print 抛异常（如 GBK 控制台遇 emoji）时，冷却逻辑仍正常返回 False，不向上抛。"""
+        import builtins
+        report = _write_report(tmp_path)
+        patch_smtp(monkeypatch)
+        sender = EmailSender(config_manager=FakeConfig(), max_retries=1, retry_delay=0)
+        _set_cooldown(sender, "user@example.com", consecutive=2, age_seconds=0)
+
+        def _boom(*a, **k):
+            raise UnicodeEncodeError("gbk", "x", 0, 1, "illegal multibyte")
+        monkeypatch.setattr(builtins, "print", _boom)
+        # 不应抛异常 —— 冷却仍优雅返回 False
+        assert sender.send_report(str(report)) is False

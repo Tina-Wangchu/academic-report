@@ -3,9 +3,9 @@
 ## 模块概述
 
 **模块名称**: 四要素 LLM 生成式分析（llm_analyzer.py）— 单篇深度分析增强
-**版本**: 1.0.0（Phase 1）
-**完成日期**: 2026-07-13
-**状态**: ✅ 已完成（13 项 mock 单测 + 真实智谱 GLM 烟雾验证）
+**版本**: 1.1.0（Phase 1 + 语言控制）
+**完成日期**: 2026-07-13（Phase 1）；2026-07-22（v1.1.0 四要素按 `intent.language` 切换语种）
+**状态**: ✅ 已完成（32 项 mock 单测 + 真实智谱 GLM 烟雾验证）
 
 ---
 
@@ -15,8 +15,9 @@
 
 - 🧠 **ZhipuProvider**：走智谱 GLM 的 **Anthropic 兼容端点**（`https://open.bigmodel.cn/api/anthropic`），复用 `ANTHROPIC_AUTH_TOKEN`，用 `requests` 直发 Messages API（**零新依赖、零额外 key**）。
 - 🪜 **FourElementAnalyzer 分层**：LLM 生成式（主）→ `StructuredExtractor` 规则（回退）；绝不崩溃、绝不编造。
-- 💾 **缓存**：`~/.hermes/llm_cache_four_element.json`，按 `sha1(doi|title)` + `temperature=0`，稳定可复现、控成本。
+- 💾 **缓存**：`~/.hermes/llm_cache_four_element.json`，按 `sha1(doi|title|language)` + `temperature=0`，稳定可复现、控成本。**language 纳入 key**——同论文的 zh/en/bilingual 分析互不串用缓存。
 - 🧩 **不改 schema**：仍填 `paper.problem/existing_approaches/new_approach/results_limitations`（+ `analysis_source` 标注 llm/rule/cache）。
+- 🌐 **语言控制（v1.1.0，修复点）**：四要素 prompt 由 `_system_prompt(language)` 按 `intent.language` 构造——`zh`=纯中文、`en`=纯英文、`bilingual`(默认)=**每个要素先中文段、换行后英文段**（内容对应一致）。旧版 prompt 硬编码中文、无视 language，导致双语报告的四要素恒为中文；现已修复。`paper_analyzer._analyze_single_paper(paper, lang)` 把 `lang` 透传给 `FourElementAnalyzer().analyze(paper, language=lang)`。摘要仍按论文原语种（英文原文，学术惯例，Option B 取舍）。
 
 ---
 
@@ -71,11 +72,12 @@ ZhipuProvider: POST {base_url}/v1/messages
 
 ---
 
-## 测试（`test/test_llm_analyzer.py`，13 项，全 mock 不联网）
+## 测试（`test/test_llm_analyzer.py`，32 项，全 mock 不联网）
 
 - ZhipuProvider 请求构造（URL/auth headers/model/temperature=0/messages）、HTTP 错误抛异常。
 - FourElementAnalyzer：合法 JSON / 代码围栏 / 标签文本 / 垃圾回退规则 / 异常回退规则 / 无 provider 走规则。
 - 缓存：命中跳过 provider、`use_cache=False` 重调、key 确定性。
+- **语言控制（`TestLanguageControl`，9 项）**：zh/en/bilingual prompt 各自含正确语种指令、非法值默认 bilingual、`analyze(language=)` 把对应 prompt 传给 provider、默认 bilingual、**同论文不同语言各自调 LLM（key 不同）**、同语言命中缓存。
 - config：读 env + 默认端点、无 key 时 disabled。
 
 ---

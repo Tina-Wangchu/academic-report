@@ -190,6 +190,68 @@ class TestCache:
         FourElementAnalyzer(provider=prov2, cache_path=cp, use_cache=False).analyze(_paper())
         assert len(prov2.calls) == 1                  # use_cache=False → 再调
 
+
+# ------------------------- 语言控制（zh/en/bilingual）--------------------- #
+
+class TestLanguageControl:
+    """四要素 LLM 分析必须按 intent.language 切换输出语种（修复点：旧版恒中文）。"""
+
+    def test_prompt_zh_directive(self):
+        p = llm_analyzer._system_prompt("zh")
+        assert "输出语言：**中文**" in p
+        assert "双语" not in p
+        assert "Output language: **English**" not in p
+
+    def test_prompt_en_directive(self):
+        p = llm_analyzer._system_prompt("en")
+        assert "Output language: **English**" in p
+        assert "输出语言：**中文**" not in p
+        assert "双语" not in p
+
+    def test_prompt_bilingual_directive(self):
+        p = llm_analyzer._system_prompt("bilingual")
+        assert "输出语言：**双语**" in p
+        assert "Output language: **bilingual**" in p   # 中英两条指令都在
+
+    def test_prompt_invalid_defaults_bilingual(self):
+        assert llm_analyzer._system_prompt("fr") == llm_analyzer._system_prompt("bilingual")
+        assert llm_analyzer._system_prompt(None) == llm_analyzer._system_prompt("bilingual")
+        assert llm_analyzer._system_prompt("") == llm_analyzer._system_prompt("bilingual")
+
+    def test_analyze_passes_en_prompt_to_provider(self, tmp_path):
+        prov = FakeProvider(return_text=VALID_JSON)
+        FourElementAnalyzer(provider=prov, cache_path=tmp_path / "c.json").analyze(
+            _paper(), language="en")
+        assert "Output language: **English**" in prov.calls[0][0]
+
+    def test_analyze_passes_bilingual_prompt_to_provider(self, tmp_path):
+        prov = FakeProvider(return_text=VALID_JSON)
+        FourElementAnalyzer(provider=prov, cache_path=tmp_path / "c.json").analyze(
+            _paper(), language="bilingual")
+        assert "输出语言：**双语**" in prov.calls[0][0]
+
+    def test_default_language_is_bilingual(self, tmp_path):
+        """analyze 不传 language → 默认 bilingual prompt。"""
+        prov = FakeProvider(return_text=VALID_JSON)
+        FourElementAnalyzer(provider=prov, cache_path=tmp_path / "c.json").analyze(_paper())
+        assert "输出语言：**双语**" in prov.calls[0][0]
+
+    def test_cache_key_differs_by_language(self, tmp_path):
+        """同论文不同 language → 不同缓存键 → 各自调用 LLM（不串用，避免 zh 命中 bilingual）。"""
+        prov = FakeProvider(return_text=VALID_JSON)
+        a = FourElementAnalyzer(provider=prov, cache_path=tmp_path / "c.json")
+        a.analyze(_paper(), language="zh")
+        a.analyze(_paper(), language="en")          # 同论文，不同语言
+        assert len(prov.calls) == 2                 # 两次都调 LLM（键不同）
+
+    def test_cache_hit_same_language(self, tmp_path):
+        """同论文同 language → 命中缓存，只调一次 LLM。"""
+        prov = FakeProvider(return_text=VALID_JSON)
+        a = FourElementAnalyzer(provider=prov, cache_path=tmp_path / "c.json")
+        a.analyze(_paper(), language="bilingual")
+        a.analyze(_paper(), language="bilingual")   # 同语言 → 缓存命中
+        assert len(prov.calls) == 1
+
     def test_cache_key_deterministic(self):
         a = FourElementAnalyzer._cache_key(_paper())
         b = FourElementAnalyzer._cache_key(_paper())

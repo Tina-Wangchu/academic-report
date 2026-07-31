@@ -173,7 +173,7 @@ def run_pipeline(user_input: str,
         recipient_used = recipient or sender.config_manager.get_email_recipient()
         email_ok = sender.send_report(
             str(report_path), recipient=recipient, subject=inc_subject)
-        print(f"     发送到 {recipient_used}: {'成功 ✅' if email_ok else '失败 ❌'}"
+        print(f"     发送到 {recipient_used}: {'成功 [OK]' if email_ok else '失败 [FAIL]'}"
               f"{f'  [{inc_subject}]' if inc_subject else ''}")
         metrics["email_sent"] = email_ok
         metrics["recipient"] = recipient_used

@@ -25,3 +25,11 @@ Thumbs.db
 .idea/
 .vscode/
 *.tmp
+
+# --- Reorganized 2026-07-30 ---
+/reports/
+agent-scholar/reports/
+.pytest_cache/
+.claude/
+_*.py
+_*.tmp.py

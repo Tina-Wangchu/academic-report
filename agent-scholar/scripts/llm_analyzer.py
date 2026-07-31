@@ -48,21 +48,58 @@ SOURCE_UNAVAILABLE = "unavailable"   # 闭源/无开放摘要与全文，无法�
 
 
 # ---------------------------------------------------------------------- #
-# Prompt
+# Prompt（按报告语言构造：zh=纯中文 / en=纯英文 / bilingual=每要素中英两段）
 # ---------------------------------------------------------------------- #
 
-SYSTEM_PROMPT = """你是学术综述分析师。基于给定论文标题与摘要，用学术、客观、凝练的中文生成四要素分析，用于专业行业报告。
+def _system_prompt(language: str = "bilingual") -> str:
+    """按 intent.language 构造四要素 system prompt。
+    - zh：四要素纯中文。
+    - en：四要素纯英文。
+    - bilingual（默认）：四要素的**每一个**都先中文段、换行后英文段（内容对应一致）。
+    这是「报告语言控制」的关键——修复点（旧版硬编码中文，无视 language）。
+    """
+    lang = (language or "bilingual").strip().lower()
+    if lang not in ("zh", "en", "bilingual"):
+        lang = "bilingual"
 
-严格遵循：
-1) problem（解决的问题）：一段，点出论文针对的核心挑战/痛点与本质难点（综合改写，不要照搬原句）。
-2) existing（已有方案）：对比 1-3 类既有方法/思路，各点出其具体不足或失败模式。
-3) new（新方案）：本文的创新内容；若为多组件方法，用「1. … 2. … 3. …」编号拆解架构。
-4) results（效果及局限）：先给量化结果（指标/百分比/数据集/部署证据，若有），再用「约束：…」给出具名局限（如依赖 X、在 Y 场景未验证）。
+    base = (
+        "你是学术综述分析师 / You are an academic survey analyst. "
+        "基于给定论文标题与摘要（及全文片段），综合改写生成四要素分析，用于专业行业报告。/"
+        "Based on the given paper title, abstract (and full-text excerpts), synthesize a four-element analysis for a professional industry report.\n\n"
+        "严格遵循 / Strictly follow:\n"
+        "1) problem（解决的问题 / Problem）：一段，点出核心挑战/痛点与本质难点（综合改写，勿照搬原句）。/ "
+        "one paragraph: the core challenge/pain-point and the essential difficulty (synthesize, do not copy).\n"
+        "2) existing（已有方案 / Existing approaches）：对比 1-3 类既有方法/思路，各点出其具体不足或失败模式。/ "
+        "compare 1-3 prior approaches, naming each one's specific shortcoming or failure mode.\n"
+        "3) new（新方案 / New approach）：本文创新内容；多组件方法用「1. … 2. … 3. …」编号拆解架构。/ "
+        "the paper's novelty; for multi-component methods, enumerate the architecture as '1. … 2. … 3. …'.\n"
+        "4) results（效果及局限 / Results & limitations）：先给量化结果（指标/百分比/数据集/部署证据，若有），再用「约束：…」给具名局限。/ "
+        "quantitative results first (metrics/percentages/datasets/deployment evidence, if any), then named limits prefixed 'Limitation: …'.\n\n"
+        "硬约束 / Hard constraints:\n"
+        "- 仅基于给定文本，不得编造；某要素文本未涉及则写「（未明确提及）/ (not explicitly mentioned)」。/ "
+        "Use only the given text; never fabricate. If an element is not covered, write '(not explicitly mentioned)'.\n"
+        "- 保留原文关键术语 / keep key terms as-is.\n"
+    )
+    if lang == "zh":
+        out_lang = "- 输出语言：**中文**（每要素 2-5 句，总量 ≤ 350 字）。\n"
+    elif lang == "en":
+        out_lang = "- Output language: **English** (2-5 sentences per element, ≤ 350 words total).\n"
+    else:  # bilingual
+        out_lang = (
+            "- 输出语言：**双语**——四个要素的**每一个**都先写**中文段**，换行后再写**英文段**（English），"
+            "两者内容对应一致；每要素中英各 2-4 句。/\n"
+            "- Output language: **bilingual** — for EACH of the four elements, write a **Chinese segment first**, "
+            "then an **English segment** on a new line, both conveying the same content; 2-4 sentences per language per element.\n"
+        )
+    out_lang += ('- 输出严格 JSON（且只输出 JSON）：'
+                 '{"problem":"…","existing":"…","new":"…","results":"…"}，四个键均为字符串。/ '
+                 'Output strictly JSON (and only JSON): '
+                 '{"problem":"…","existing":"…","new":"…","results":"…"}, all four values strings.')
+    return base + out_lang
 
-硬约束：
-- 仅基于给定文本，不得编造未提及的数据、方法或结论；某要素文本未涉及则写「（未明确提及）」。
-- 保留原文关键英文术语；每要素 2-5 句，总量 ≤ 350 字。
-- 输出严格 JSON（且只输出 JSON）：{"problem":"…","existing":"…","new":"…","results":"…"}，四个键均为字符串。"""
+
+# 向后兼容（外部若引用 SYSTEM_PROMPT）；默认 bilingual
+SYSTEM_PROMPT = _system_prompt("bilingual")
 
 
 # ---------------------------------------------------------------------- #
@@ -373,14 +410,15 @@ class FourElementAnalyzer:
 
     # ----------------------------- 公共入口 ---------------------------- #
 
-    def analyze(self, paper: Paper) -> Dict[str, Any]:
+    def analyze(self, paper: Paper, language: str = "bilingual") -> Dict[str, Any]:
         """
         返回 {problem, existing_approaches, new_approach, results_limitations, analysis_source}。
         分层：缓存 → 闭源检测 → LLM → 规则。
+        language：报告语言 zh/en/bilingual，驱动 LLM 输出语种（缓存按 language 隔离）。
         闭源（无摘要 + 无开放全文）：四要素留空 + analysis_source=unavailable（报告据此标注检索链接），
         不调 LLM、不编造。
         """
-        key = self._cache_key(paper)
+        key = self._cache_key(paper, language)
         if self.use_cache:
             cached = self._cache_get(key)
             if cached is not None:
@@ -400,7 +438,7 @@ class FourElementAnalyzer:
 
         if self.provider is not None:
             try:
-                parsed = self._from_llm(paper, fulltext)
+                parsed = self._from_llm(paper, fulltext, language)
                 if parsed:
                     parsed["analysis_source"] = SOURCE_LLM
                     if self.use_cache:
@@ -417,8 +455,10 @@ class FourElementAnalyzer:
 
     # ------------------------------ LLM 路径 --------------------------- #
 
-    def _from_llm(self, paper: Paper, fulltext: str = "") -> Optional[Dict[str, str]]:
-        raw = self.provider.summarize(SYSTEM_PROMPT, self._input_text(paper, fulltext))
+    def _from_llm(self, paper: Paper, fulltext: str = "",
+                  language: str = "bilingual") -> Optional[Dict[str, str]]:
+        raw = self.provider.summarize(_system_prompt(language),
+                                      self._input_text(paper, fulltext))
         parsed = self._parse(raw)
         if not parsed:
             return None
@@ -488,8 +528,10 @@ class FourElementAnalyzer:
     # ------------------------------ 缓存 ------------------------------- #
 
     @staticmethod
-    def _cache_key(paper: Paper) -> str:
-        norm = f"{(paper.doi or '').strip().lower()}|{(paper.title or '').strip().lower()}"
+    def _cache_key(paper: Paper, language: str = "bilingual") -> str:
+        # language 纳入 key：同一论文的 zh/en/bilingual 分析结果不同，不可混用缓存
+        lang = (language or "bilingual").strip().lower() or "bilingual"
+        norm = f"{(paper.doi or '').strip().lower()}|{(paper.title or '').strip().lower()}|{lang}"
         return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
 
     def _cache_load(self) -> Dict[str, Any]:

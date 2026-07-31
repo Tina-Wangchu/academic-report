@@ -8,9 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **EVERY TIME before creating or modifying files**, you MUST:
 
-1. Read `agent-scholar skill实施计划.md` to re-understand the project's complete intent and requirements
+1. Read `docs/agent-scholar skill实施计划.md` to re-understand the project's complete intent and requirements
 2. Align your implementation with the detailed specifications in that plan (2357 lines of detailed implementation code)
-3. Ensure your changes support the 6 core modules and 2 functional modes as specified in design-init.txt
+3. Ensure your changes support the 6 core modules and 2 functional modes as specified in docs/design-init.txt
 
 **Why**: The implementation plan contains the authoritative specifications for all 6 modules. Reading it prevents drift from requirements and ensures consistency with the overall architecture.
 
@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **After EVERY code modification or file creation**, you MUST:
 
-1. Update `agent-scholar skill实施计划.md`:
+1. Update `docs/agent-scholar skill实施计划.md`:
    - Mark implemented modules as ✅ completed
    - Update progress sections
    - Add any new implementation details or code changes
@@ -69,7 +69,7 @@ The system follows a pipeline architecture with 6 core modules + 2 mode/infra mo
 - `paper_filter.py` - Intelligent filtering, ranking, hotspot clustering
 - `paper_analyzer.py` - Information extraction, four-element excerpts, APA 7th, overall analysis, foundational papers
 - `report_generator.py` - Academic report generator (Markdown + HTML, bilingual, four-element excerpts, incremental label)
-- `email_sender.py` - SMTP/SSL email sender (attachments, retry, connection test)
+- `email_sender.py` - SMTP/SSL email sender（attachments, retry, **auto-detect proxy: direct → SOCKS fallback**, so mail sends whether proxy on/off）
 - `pipeline.py` - Full-chain orchestrator (search→report→email) + **incremental branch** (`--incremental`)
 - `timestamp_manager.py` ✅ - Persists per-topic last-run timestamps (`~/.hermes/academic_scholar_timestamps.json`) for incremental mode
 - `scheduler.py` ✅ - Standalone in-process scheduler (定时报告入口): parses周期 → loops `run_pipeline(incremental=True)`; `--once/--dry-run`; SIGINT; optional croniter
@@ -189,10 +189,10 @@ pytest test/ --cov=agent_scholar --cov-report=html
 
 ```bash
 # Install skill to Hermes
-cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/academic-scholar
+cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/academic-report
 
 # Test skill loading
-hermes chat -q "/academic-scholar 帮助"
+hermes chat -q "/academic-report 帮助"
 
 # List all skills
 /skills
@@ -202,7 +202,7 @@ hermes chat -q "/academic-scholar 帮助"
 
 ```bash
 # Single search mode
-hermes chat -q "/academic-scholar 搜索最近的机器学习论文，生成报告并发送到我的邮箱"
+hermes chat -q "/academic-report 搜索最近的机器学习论文，生成报告并发送到我的邮箱"
 
 # Scheduled report (accept blueprint suggestion)
 hermes chat
@@ -245,7 +245,7 @@ When implementing `paper_search.py`:
 
 ## Report Structure
 
-Generated reports follow the spec in `报告格式设计.md` (bilingual CN/EN, **authoritative**). The `report_generator.py` Module 5 and `templates/report_template.md` / `report_html_template.html` must conform. Structure:
+Generated reports follow the spec in `docs/报告格式设计.md` (bilingual CN/EN, **authoritative**). The `report_generator.py` Module 5 and `templates/report_template.md` / `report_html_template.html` must conform. Structure:
 
 1. **Title + Time** — `{time_range} {field/topic} Report` (e.g., `2023-2025 Statistics Research Report`); a small-font line shows both the **report generation time** and the **report coverage time** (paper publication range from `intent.start_date`–`end_date`)
 2. **I. Report Overview (报告速览)** — summarize **by hotspot** (not per-paper): list which hotspots the report covers + each hotspot's specific finding (representative paper's result/conclusion); do not list every paper title
@@ -277,16 +277,16 @@ All scripts import from `utils.py`, ensure it's implemented first:
 ## File Context
 
 - **SKILL.md** - Hermes Agent skill definition with frontmatter (metadata, environment variables, blueprint schedule)
-- **design-init.txt** - Original Chinese requirements document (6 core modules, 2 modes)
-- **agent-scholar skill实施计划.md** - Detailed implementation plan (2000+ lines with complete code for all 6 modules)
-- **报告格式设计.md** - Authoritative bilingual (CN/EN) report format spec; Module 5 and report templates must conform
+- **docs/design-init.txt** - Original Chinese requirements document (6 core modules, 2 modes)
+- **docs/agent-scholar skill实施计划.md** - Detailed implementation plan (2000+ lines with complete code for all 6 modules)
+- **docs/报告格式设计.md** - Authoritative bilingual (CN/EN) report format spec; Module 5 and report templates must conform
 - **requirements.txt** - Python dependencies (arxiv, scholarly, pandas, markdown, jinja2, secure-smtplib, python-dateutil, pyyaml)
 
 ## Implementation Notes
 
 ### When implementing `paper_search.py`:
 
-Follow the pattern from the implementation plan in `agent-scholar skill实施计划.md` (lines 518+):
+Follow the pattern from the implementation plan in `docs/agent-scholar skill实施计划.md` (lines 518+):
 
 ```python
 class PaperSearcher:

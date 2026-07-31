@@ -158,10 +158,10 @@ agent-scholar-2.0/
 | `paper_search.py` | 论文搜索 | ✅ 完成 | 多数据源并行检索、去重合并；OpenAlex 摘要重建；S2 TL;DR（tldr 字段）接入；实验驱动修复多处 bug（test_paper_search.py 27项） |
 | `paper_filter.py` | 筛选排序 | ✅ 完成 | 质量过滤、优先级排序、热点聚类（≥2 收敛+topic_hint 相关性）、热点介绍、年份级时间安全网（test_paper_filter.py 27项） |
 | `paper_analyzer.py` | 信息分析 | ✅ 完成 | 结构化提取、APA 7th、方向级整体分析、奠基论文（真实 S2 references API + 离线回退）；AbstractSummarizer 完整去填充摘要；四要素分层（**LLM 生成式→规则回退**，由 `llm_analyzer.FourElementAnalyzer` 调度；StructuredExtractor 作离线规则版）（test_paper_analyzer.py 50项） |
-| `llm_analyzer.py` | 四要素 LLM | ✅ 新增 | `ZhipuProvider`（智谱 GLM 的 Anthropic 兼容端点，复用 ANTHROPIC_AUTH_TOKEN，零新依赖）+ `FourElementAnalyzer`（LLM→规则分层 + 按 DOI/title 缓存）；学术 prompt 输出 JSON 四要素；`temperature=0`（test_llm_analyzer.py 13项，mock） |
+| `llm_analyzer.py` | 四要素 LLM | ✅ 新增（v1.1.0） | `ZhipuProvider`（智谱 GLM 的 Anthropic 兼容端点，复用 ANTHROPIC_AUTH_TOKEN，零新依赖）+ `FourElementAnalyzer`（LLM→规则分层 + 按 DOI/title/language 缓存）；**v1.1.0：prompt 由 `_system_prompt(language)` 按 `intent.language` 构造**（zh=中文 / en=英文 / bilingual=每要素中英两段），修复旧版"四要素恒中文、无视 language"；`temperature=0`（test_llm_analyzer.py 32项，mock，含 TestLanguageControl 9项） |
 | `report_generator.py` | 报告生成 | ✅ 完成 | 四段式 MD/HTML、双语（默认 bilingual）、速览按热点逐篇概述、**单篇块四要素**（LLM/规则统一渲染，全空回退完整 Abstract）、趋势语料派生、Option B 委托（test_report_generator.py 23项） |
 | `templates/report_html_template.html` | HTML 模板 | ✅ 完成 | HTML 外壳 + CSS 样式 |
-| `email_sender.py` | 邮件发送 | ✅ 完成 | SMTP/SSL 分流、HTML 正文+附件、重试、连接测试（test_email_sender.py 17项） |
+| `email_sender.py` | 邮件发送 | ✅ 完成（v1.1.1） | SMTP/SSL 分流、HTML 正文+附件、重试、**代理自动识别（直连→SOCKS 回退，开/关代理都能发）**、连接测试（test_email_sender.py 29项）。**v1.1.1（2026-07-21）**：修本地 SOCKS 探测 bug——`_connect_auto_local_socks` 误用 `_REAL_SOCKET.create_connection`（socket 类无此方法），导致直连失败且无环境变量代理时兜底探测抛 `AttributeError`、回退彻底无法启动（**Jul 21 邮件失败根因**）；改用模块级 `_REAL_CREATE_CONNECTION`，回归测试 `TestAutoLocalSocksProbe` 锁死。 |
 
 #### 定时报告模块 ✅（2026-07-13 实现）
 
@@ -316,7 +316,7 @@ hermes config set skills.config.academic.email_recipient your@email.com
 cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/
 
 # 方法2：创建符号链接（开发时推荐）
-ln -s $(pwd)/agent-scholar ~/.hermes/skills/academic-scholar
+ln -s $(pwd)/agent-scholar ~/.hermes/skills/academic-report
 ```
 
 ### API 配置说明
@@ -393,7 +393,7 @@ SMTP_PASSWORD: (你的密码)
 hermes chat --toolsets skills -q "列出所有技能"
 
 # 测试本技能是否加载
-hermes chat -q "/academic-scholar 帮助"
+hermes chat -q "/academic-report 帮助"
 
 # 测试邮件配置
 python3 agent-scholar/scripts/email_sender.py --test

@@ -706,9 +706,10 @@ class PaperAnalyzer:
             paper.value_application = self._infer_application(paper)
             paper.condensed_abstract = AbstractSummarizer().summarize(paper)
         # 四要素（单篇块新结构）：LLM 生成式 → 规则回退；始终填充，除非已存在
+        # language 透传：zh/en/bilingual 驱动 LLM 输出语种（修复点：旧版无视 lang，恒中文）
         if not paper.problem and not paper.new_approach:
             from llm_analyzer import FourElementAnalyzer  # 延迟导入，避免循环依赖
-            fea = FourElementAnalyzer().analyze(paper)
+            fea = FourElementAnalyzer().analyze(paper, language=lang)
             paper.problem = fea["problem"]
             paper.existing_approaches = fea["existing_approaches"]
             paper.new_approach = fea["new_approach"]
