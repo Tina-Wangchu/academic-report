@@ -13,7 +13,7 @@
 
 ### 核心功能
 
-本模块实现从多个学术数据源并行检索论文的功能，是整个 Agent Scholar 系统的数据获取层。
+本模块实现从多个学术数据源并行检索论文的功能，是整个 Academic Report 系统的数据获取层。
 
 **主要能力**:
 - 🔍 并行搜索多个数据源（arXiv、Semantic Scholar、OpenAlex）
@@ -408,9 +408,9 @@ for p in papers:
 - [Semantic Scholar API](https://www.semanticscholar.org/product/api)
 - [OpenAlex API](https://docs.openalex.org/)
 - [Hermes Agent 文档](https://hermes-agent.nousresearch.com/docs/)
-- [实施计划](../agent-scholar%20skill实施计划.md)
+- [实施计划](../academic-report%20skill实施计划.md)
 
 ---
 
 **最后更新**: 2026-07-11  
-**维护者**: Agent Scholar Team
+**维护者**: Academic Report Team

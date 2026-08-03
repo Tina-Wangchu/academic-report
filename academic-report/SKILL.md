@@ -5,7 +5,7 @@ version: 2.0.0
 license: MIT
 ---
 
-# Academic Scholar
+# Academic Report
 
 学术论文自动化：检索 → **LLM 四要素分析** → 双语报告 → 邮件，**一条命令完成**。
 本技能平台无关（可用于 Claude、Codex 等任意 Agent 运行环境），不依赖任何特定 Agent 框架。
@@ -22,15 +22,15 @@ license: MIT
 ## 依赖
 
 1. **Python 3.8+**
-2. **Python 依赖**：在 `agent-scholar/` 目录执行 `pip install -r requirements.txt`
-3. **配置文件**：`agent-scholar/config/.env` 已就绪（由 `.env.example` 复制并填值）
+2. **Python 依赖**：在 `academic-report/` 目录执行 `pip install -r requirements.txt`
+3. **配置文件**：`academic-report/config/.env` 已就绪（由 `.env.example` 复制并填值）
    - `SMTP_*` 四项——**必需**（否则无法发邮件）
    - `LLM_*`——推荐（四要素深度分析；未配置则自动回退规则抽取，不报错）
 4. **网络**：能访问 arXiv / Semantic Scholar / OpenAlex；SMTP 出站可达
 
 ## 执行流程（只需一条命令）
 
-从 `agent-scholar/` 目录运行（部署机 cwd 不同时改用绝对路径）：
+从 `academic-report/` 目录运行（部署机 cwd 不同时改用绝对路径）：
 
 ```bash
 python scripts/pipeline.py "<用户的检索请求原话>" --recipient <用户邮箱>
@@ -58,7 +58,7 @@ python scripts/pipeline.py "<用户的检索请求原话>" --recipient <用户�
 
 ## 配置
 
-唯一配置来源：`agent-scholar/config/.env`（不入 git；模板 `.env.example` 入 git）。
+唯一配置来源：`academic-report/config/.env`（不入 git；模板 `.env.example` 入 git）。
 
 加载优先级：`真实环境变量（export）> .env 文件 > 代码默认值`。完整配置项见 `.env.example`，分 5 组：
 

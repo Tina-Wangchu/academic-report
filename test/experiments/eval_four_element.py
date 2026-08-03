@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-SCRIPTS = os.path.join(os.path.dirname(__file__), "..", "..", "agent-scholar", "scripts")
+SCRIPTS = os.path.join(os.path.dirname(__file__), "..", "..", "academic-report", "scripts")
 sys.path.insert(0, SCRIPTS)
 try:
     sys.stdout.reconfigure(encoding="utf-8")

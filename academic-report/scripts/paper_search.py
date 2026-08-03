@@ -74,7 +74,7 @@ class ArxivSearcher:
             "sortBy": "submittedDate",
             "sortOrder": "descending",
         }
-        headers = {"User-Agent": "agent-scholar/2.0 (mailto:agent-scholar@example.com)"}
+        headers = {"User-Agent": "academic-report/2.0 (mailto:academic-report@example.com)"}
 
         papers: List[Paper] = []
         last_err = None

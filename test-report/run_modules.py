@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Agent Scholar —— 分模块测试运行
+Academic Report —— 分模块测试运行
 逐个跑 6 个核心模块，捕获每个模块的【返回字段/结果】，存到本目录（test-report/）。
 
 用法：python run_modules.py
@@ -18,7 +18,7 @@ from collections import Counter
 # 静音第三方日志，让输出干净
 logging.disable(logging.CRITICAL)
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "agent-scholar" / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "academic-report" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 OUT = Path(__file__).resolve().parent  # test-report/
 
@@ -263,7 +263,7 @@ summary = {
 save("summary.json", summary)
 
 # 人类可读 summary.md
-lines = ["# Agent Scholar 分模块测试运行结果\n",
+lines = ["# Academic Report 分模块测试运行结果\n",
          f"- 查询: `{QUERY}`",
          f"- 每源最大结果数: {MAX_RESULTS}",
          f"- 报告语言: {LANG}\n",

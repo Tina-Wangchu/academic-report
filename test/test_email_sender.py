@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timedelta
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent-scholar', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'academic-report', 'scripts'))
 
 import email_sender
 from email_sender import EmailSender

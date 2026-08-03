@@ -1,8 +1,8 @@
-# Agent Scholar — 模块实现细节文档
+# Academic Report — 模块实现细节文档
 
-本目录汇集 Agent Scholar 各核心模块的**实现细节说明**（设计动机、内部机制、关键算法、测试要点），
-供开发者深入理解模块内部。这些文档与源码分离——源码在 `agent-scholar/scripts/`，本目录在其外层，
-保持 skill 目录（`agent-scholar/`）只含可执行代码与配置，干净清爽。
+本目录汇集 Academic Report 各核心模块的**实现细节说明**（设计动机、内部机制、关键算法、测试要点），
+供开发者深入理解模块内部。这些文档与源码分离——源码在 `academic-report/scripts/`，本目录在其外层，
+保持 skill 目录（`academic-report/`）只含可执行代码与配置，干净清爽。
 
 > 文档对应 v2.0 重构后的代码。`scheduler` / `timestamp_manager` 两模块已在 v2.0 去周期化重构中移除，
 > 其历史实现细节文档不再保留。
@@ -20,7 +20,7 @@
 
 ## 与其它文档的关系
 
-- **`docs/agent-scholar skill实施计划.md`** — 项目整体实施计划与模块设计规范（权威）。
+- **`docs/academic-report skill实施计划.md`** — 项目整体实施计划与模块设计规范（权威）。
 - **`docs/报告格式设计.md`** — 生成的学术报告的格式规范（双语、四段式、四要素）。
 - **本目录** — 各模块**实现层面**的细节展开（实施计划的补充）。
 

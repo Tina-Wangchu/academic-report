@@ -1,3 +1,3 @@
 """
-Agent Scholar 测试模块
+Academic Report 测试模块
 """

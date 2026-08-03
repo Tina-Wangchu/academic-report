@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **EVERY TIME before creating or modifying files**, you MUST:
 
-1. Read `docs/agent-scholar skill实施计划.md` to re-understand the project's complete intent and requirements
+1. Read `docs/academic-report skill实施计划.md` to re-understand the project's complete intent and requirements
 2. Align your implementation with the detailed specifications in that plan (2357 lines of detailed implementation code)
 3. Ensure your changes support the 6 core modules and 2 functional modes as specified in docs/design-init.txt
 
@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **After EVERY code modification or file creation**, you MUST:
 
-1. Update `docs/agent-scholar skill实施计划.md`:
+1. Update `docs/academic-report skill实施计划.md`:
    - Mark implemented modules as ✅ completed
    - Update progress sections
    - Add any new implementation details or code changes
@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Agent Scholar is a Hermes Agent Skill that performs automated academic paper search, analysis, and report generation with email delivery. It integrates with multiple academic data sources (arXiv, Semantic Scholar, OpenAlex) to retrieve papers, intelligently filter and rank them, extract key information, and generate formatted academic reports sent via email.
+Academic Report is a Hermes Agent Skill that performs automated academic paper search, analysis, and report generation with email delivery. It integrates with multiple academic data sources (arXiv, Semantic Scholar, OpenAlex) to retrieve papers, intelligently filter and rank them, extract key information, and generate formatted academic reports sent via email.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ Email Sender (SMTP delivery with attachments)
 
 ### Module Architecture
 
-The system follows a pipeline architecture with 6 core modules + 2 mode/infra modules in `agent-scholar/scripts/`:
+The system follows a pipeline architecture with 6 core modules + 2 mode/infra modules in `academic-report/scripts/`:
 
 **Completed Modules** ✅:
 - `utils.py` - Data models (`Paper`, `SearchIntent`) and utility functions (APA citation, date parsing, `schedule_interval`)
@@ -102,7 +102,7 @@ Before any development or testing:
 pip install hermes-agent
 
 # Install dependencies
-cd agent-scholar-2.0/agent-scholar
+cd academic-report-2.0/academic-report
 pip install -r requirements.txt
 
 # Configure environment variables (REQUIRED for email functionality)
@@ -129,13 +129,13 @@ For Gmail SMTP, generate an app password: https://myaccount.google.com/apppasswo
 
 ```bash
 # Test configuration loading
-python3 agent-scholar/scripts/config_manager.py
+python3 academic-report/scripts/config_manager.py
 
 # Test intent parsing
-python3 agent-scholar/scripts/intent_parser.py --input "搜索最近的深度学习论文"
+python3 academic-report/scripts/intent_parser.py --input "搜索最近的深度学习论文"
 
 # Test email configuration (requires SMTP setup)
-python3 agent-scholar/scripts/email_sender.py --test
+python3 academic-report/scripts/email_sender.py --test
 ```
 
 ### Test File Requirements
@@ -182,14 +182,14 @@ pytest test/test_paper_search.py::test_arxiv_search
 pytest test/ -v
 
 # Run with coverage
-pytest test/ --cov=agent_scholar --cov-report=html
+pytest test/
 ```
 
 ### Hermes Agent Integration
 
 ```bash
 # Install skill to Hermes
-cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/academic-report
+cp -r academic-report-2.0/academic-report ~/.hermes/skills/academic-report
 
 # Test skill loading
 hermes chat -q "/academic-report 帮助"
@@ -278,7 +278,7 @@ All scripts import from `utils.py`, ensure it's implemented first:
 
 - **SKILL.md** - Hermes Agent skill definition with frontmatter (metadata, environment variables, blueprint schedule)
 - **docs/design-init.txt** - Original Chinese requirements document (6 core modules, 2 modes)
-- **docs/agent-scholar skill实施计划.md** - Detailed implementation plan (2000+ lines with complete code for all 6 modules)
+- **docs/academic-report skill实施计划.md** - Detailed implementation plan (2000+ lines with complete code for all 6 modules)
 - **docs/报告格式设计.md** - Authoritative bilingual (CN/EN) report format spec; Module 5 and report templates must conform
 - **requirements.txt** - Python dependencies (arxiv, scholarly, pandas, markdown, jinja2, secure-smtplib, python-dateutil, pyyaml)
 
@@ -286,7 +286,7 @@ All scripts import from `utils.py`, ensure it's implemented first:
 
 ### When implementing `paper_search.py`:
 
-Follow the pattern from the implementation plan in `docs/agent-scholar skill实施计划.md` (lines 518+):
+Follow the pattern from the implementation plan in `docs/academic-report skill实施计划.md` (lines 518+):
 
 ```python
 class PaperSearcher:

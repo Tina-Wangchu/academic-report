@@ -2,6 +2,6 @@
 1. 目前这个项目很多的配置和代码都是依赖于Hermes Agent的运行环境. 我需要构建一个执行不依赖hermes环境的Agent 通用skill 如codex, claude等 请删除所有Hermes特有依赖 修改为通用
 2. 所有配置(包括LLM analyze所用到的key) 都放到 config目录下env.example 用户使用这个skill时rename为env.即可. 这个文件是整个工程中唯一的config所在地
 3. 修改SKILL.md 删除其中由多次修改产生的报错“废料” 清晰明了地呈现 依赖-执行流程-注意事项
-3. 所有测试代码放到test (目前在CLAUDE.md中有说运行script脚本进行测试的 我要求所有测试的脚本都在test中 agent-scholar中所有内容只用于实践运用)
+3. 所有测试代码放到test (目前在CLAUDE.md中有说运行script脚本进行测试的 我要求所有测试的脚本都在test中 academic-report中所有内容只用于实践运用)
 5. 不需要在skill脚本中体现周期(自动增量) 去掉这个功能 周期性发送功能由AI Agent自己执行
 6. report_generator.py l284: 研究缺口理解有误, 不是找到的论文有哪些问题 而是基于这些论文 给阅读者提供一到两个可以继续深挖研究的方向

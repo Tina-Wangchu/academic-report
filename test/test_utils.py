@@ -8,7 +8,7 @@ import sys
 import os
 from datetime import datetime, timedelta
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent-scholar', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'academic-report', 'scripts'))
 
 from utils import Paper, format_apa_citation, parse_date_range, clean_doi, validate_email, safe_filename
 

@@ -1,4 +1,4 @@
-# Agent Scholar
+# Academic Report
 
 > Intelligent academic paper search, analysis, report generation, and email delivery system
 > 智能化学术论文搜索、分析、报告生成与邮件发送系统
@@ -17,9 +17,9 @@
 
 ## 📖 Overview / 简介
 
-**Agent Scholar** is a fully-featured, **platform-agnostic AI Agent skill** (works with Claude, Codex, and any agent runtime — no Hermes dependency) that automatically executes academic paper retrieval, intelligent filtering, in-depth analysis, academic report generation, and email delivery through natural language triggers.
+**Academic Report** is a fully-featured, **platform-agnostic AI Agent skill** (works with Claude, Codex, and any agent runtime — no Hermes dependency) that automatically executes academic paper retrieval, intelligent filtering, in-depth analysis, academic report generation, and email delivery through natural language triggers.
 
-**Agent Scholar** 是一个功能完整的**平台无关 AI Agent 技能**（可用于 Claude、Codex 等任意 Agent 运行环境，不依赖 Hermes），能够通过自然语言触发，自动执行学术论文检索、智能筛选排序、深度分析、生成学术报告并通过邮件发送。
+**Academic Report** 是一个功能完整的**平台无关 AI Agent 技能**（可用于 Claude、Codex 等任意 Agent 运行环境，不依赖 Hermes），能够通过自然语言触发，自动执行学术论文检索、智能筛选排序、深度分析、生成学术报告并通过邮件发送。
 
 ### Key Features / 核心功能
 
@@ -60,13 +60,13 @@
 
 ## 📦 仓库结构 / Repository Structure（部署前先看 / Read this first）
 
-本仓库是**开发工作区**——包含 skill 本体 + 设计文档 + 测试。**实际部署只需要内层的 `agent-scholar/` 目录**；仓库里其它文件都是开发过程产物，skill 运行完全不需要。
+本仓库是**开发工作区**——包含 skill 本体 + 设计文档 + 测试。**实际部署只需要内层的 `academic-report/` 目录**；仓库里其它文件都是开发过程产物，skill 运行完全不需要。
 
-This repo is a **development workspace** (skill + design docs + tests). **To deploy, you only need the inner `agent-scholar/` directory** — everything else is dev-only.
+This repo is a **development workspace** (skill + design docs + tests). **To deploy, you only need the inner `academic-report/` directory** — everything else is dev-only.
 
 ```
-agent-scholar/                 ← 仓库根 / repo root（开发工作区 / dev workspace）
-├── agent-scholar/             ← ★ skill 本体（部署单元 / deployable unit = 拷这个）
+academic-report/                 ← 仓库根 / repo root（开发工作区 / dev workspace）
+├── academic-report/             ← ★ skill 本体（部署单元 / deployable unit = 拷这个）
 │   ├── SKILL.md              #   技能定义（Agent 据此识别技能）
 │   ├── scripts/              #   运行脚本：pipeline.py 等
 │   ├── config/               #   配置：.env（由 .env.example 复制）
@@ -77,11 +77,11 @@ agent-scholar/                 ← 仓库根 / repo root（开发工作区 / dev
 └── README.md / CLAUDE.md     ← 开发说明 — 运行不需要
 ```
 
-**使用方式 / Usage**：把内层 `agent-scholar/` 整个目录拷到你 AI Agent 的 skill 目录即可。Copy the inner `agent-scholar/` into your agent's skill directory:
+**使用方式 / Usage**：把内层 `academic-report/` 整个目录拷到你 AI Agent 的 skill 目录即可。Copy the inner `academic-report/` into your agent's skill directory:
 
 ```bash
 # 例：拷到 Claude Code 的 skill 目录（不同 Agent 路径不同，按你的 Agent 规范来）
-cp -r agent-scholar/agent-scholar ~/.claude/skills/academic-report
+cp -r academic-report/academic-report ~/.claude/skills/academic-report
 ```
 
 > 💡 部署的目标目录必须保留 `SKILL.md` + `scripts/` + `config/` + `templates/` 四项。`docs/`、`details/`、`test/` 等留在仓库即可，skill 运行不读它们。
@@ -103,20 +103,20 @@ cp -r agent-scholar/agent-scholar ~/.claude/skills/academic-report
 
 ```bash
 # Clone project / 克隆项目
-git clone https://github.com/your-username/agent-scholar.git
-cd agent-scholar
+git clone https://github.com/your-username/academic-report.git
+cd academic-report
 
 # Install dependencies / 安装依赖
-pip install -r agent-scholar/requirements.txt
+pip install -r academic-report/requirements.txt
 ```
 
 #### 2. Configure / 配置（唯一配置来源）
 
 ```bash
 # Copy the env template and fill in your values / 复制配置模板并填入你的值
-cp agent-scholar/config/.env.example agent-scholar/config/.env
+cp academic-report/config/.env.example academic-report/config/.env
 
-# Edit agent-scholar/config/.env — required for email / 编辑 .env，邮件功能必需：
+# Edit academic-report/config/.env — required for email / 编辑 .env，邮件功能必需：
 #   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 # 必需：SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 ```
@@ -133,7 +133,7 @@ cp agent-scholar/config/.env.example agent-scholar/config/.env
 
 For sending academic report emails / 用于发送学术报告邮件。
 
-**配置位置 / Where to configure**: `agent-scholar/config/.env`（本工程唯一配置来源 / the single source of config for this project）
+**配置位置 / Where to configure**: `academic-report/config/.env`（本工程唯一配置来源 / the single source of config for this project）
 
 ```bash
 # QQ 邮箱（推荐，国内直连可用）/ QQ Mail (recommended, direct in China)
@@ -179,12 +179,12 @@ unset SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD        # 当前 shell / curren
 #   Control Panel → User env vars → delete SMTP_*  (or `setx SMTP_PASSWORD ""` then reopen terminal)
 ```
 
-> 💡 **配置只在一个地方**：`agent-scholar/config/.env`（本工程唯一配置来源），避免「环境变量 vs .env」双源漂移导致排查困惑。 / Configure in **ONE place**: `agent-scholar/config/.env` (the single config source) to avoid two-source drift.
+> 💡 **配置只在一个地方**：`academic-report/config/.env`（本工程唯一配置来源），避免「环境变量 vs .env」双源漂移导致排查困惑。 / Configure in **ONE place**: `academic-report/config/.env` (the single config source) to avoid two-source drift.
 
 **收件人 / Recipient**: 在 `.env` 中设置 `EMAIL_RECIPIENT`（留空则回退到 `SMTP_USER`，即发给自己）/ Set `EMAIL_RECIPIENT` in `.env` (empty → falls back to `SMTP_USER`, i.e. send to yourself):
 
 ```bash
-# agent-scholar/config/.env
+# academic-report/config/.env
 EMAIL_RECIPIENT=your@email.com
 ```
 
@@ -197,7 +197,7 @@ EMAIL_RECIPIENT=your@email.com
 All non-secret report defaults live in `.env` too (all optional, with sensible defaults) / 所有非敏感默认参数也写在 `.env`（均可选，有默认值）：
 
 ```bash
-# agent-scholar/config/.env
+# academic-report/config/.env
 DEFAULT_LANGUAGE=bilingual        # en / zh / bilingual
 DEFAULT_TIME_RANGE=3y             # 1y / 3y / all
 MAX_RESULTS=50                    # 每个数据源最大结果数 / max results per source
@@ -214,7 +214,7 @@ SCI_EI_ONLY=false
 To increase API rate limits / 提升 API 限流限制。
 
 ```bash
-# agent-scholar/config/.env
+# academic-report/config/.env
 SEMANTIC_SCHOLAR_API_KEY=your-s2s-key
 # (arXiv / OpenAlex 无需 key / no key needed)
 ```
@@ -228,7 +228,7 @@ SEMANTIC_SCHOLAR_API_KEY=your-s2s-key
 Generate a complete academic report for a specified time period / 生成指定时间内的完整学术报告。
 
 ```bash
-cd agent-scholar
+cd academic-report
 python scripts/pipeline.py "搜索最近的 machine learning 论文，生成报告并发送到我的邮箱" --max-results 8
 # Optional parameters / 可选参数（默认值见 config/.env）：
 #   --language zh|en|bilingual  --time 3y|1y|1w|all  --recipient a@b.com
@@ -258,10 +258,10 @@ python scripts/pipeline.py "搜索最近的 machine learning 论文，生成报�
 
 ```bash
 # Test email configuration / 测试邮件配置
-python agent-scholar/scripts/email_sender.py --test
+python academic-report/scripts/email_sender.py --test
 
 # Check loaded config (SMTP/LLM defaults from .env) / 查看加载的配置（来自 .env）
-python agent-scholar/scripts/config_manager.py
+python academic-report/scripts/config_manager.py
 ```
 
 ---
@@ -269,7 +269,7 @@ python agent-scholar/scripts/config_manager.py
 ## 📂 Project Structure / 项目结构
 
 ```
-agent-scholar/
+academic-report/
 ├── SKILL.md                    # Skill definition / 技能主定义文件
 ├── requirements.txt             # Python dependencies / Python 依赖
 ├── config/                      # Configuration (single source) / 配置（唯一来源）
@@ -292,7 +292,7 @@ agent-scholar/
 └── reports/                    # Generated reports — runtime, gitignored / 运行时生成（已 gitignore）
 ```
 
-> 仓库根还有：`docs/`（`design-init.txt` 原始需求、`agent-scholar skill实施计划.md` 详细实施计划、`报告格式设计.md` 报告规范、`v1.0_vs_v2.0_对比.md` 迭代复盘、`notes/` 设计笔记）、`examples/`（真实报告样本）、`作品展示/`（求职/科研作品集）、`test/`（308 项 pytest）。
+> 仓库根还有：`docs/`（`design-init.txt` 原始需求、`academic-report skill实施计划.md` 详细实施计划、`报告格式设计.md` 报告规范、`v1.0_vs_v2.0_对比.md` 迭代复盘、`notes/` 设计笔记）、`examples/`（真实报告样本）、`作品展示/`（求职/科研作品集）、`test/`（308 项 pytest）。
 
 **Status Legend / 状态说明**：
 - ✅ Complete / 已完成
@@ -307,7 +307,7 @@ agent-scholar/
 
 ### Current Progress / 当前进度
 
-- [x] **Refactor — De-Hermes & Unified Config (2026-08-02, in progress)**: making the skill **platform-agnostic** (Claude / Codex / any agent). Phase 1 ✅ — removed all `~/.hermes/` hardcoded paths via a single data dir (`agent-scholar/config/`); de-branded "Agent Scholar for Hermes Agent" → "Agent Scholar". Phase 2 ✅ — **single config source**: `agent-scholar/config/.env` (copied from `.env.example`); config_manager getters now read env vars (SMTP / LLM / API keys / report params); deleted legacy `env.example` + `config.example.yaml`; `.gitignore` updated. Scheduled-feature removal (Phase 5) and SKILL.md cleanup (Phase 3) pending. / 重构——去 Hermes 化与配置统一（2026-08-02，进行中）：技能改为**平台无关**（Claude / Codex / 任意 agent）。Phase 1 ✅——以单一数据目录 `agent-scholar/config/` 取代全部 `~/.hermes/` 硬编码路径；品牌串去 Hermes。Phase 2 ✅——**唯一配置来源** `config/.env`（由 `.env.example` 复制）；config_manager getter 改读环境变量；删除旧 `env.example` + `config.example.yaml`；更新 `.gitignore`。周期功能移除（Phase 5）与 SKILL.md 清理（Phase 3）待办。
+- [x] **Refactor — De-Hermes & Unified Config (2026-08-02, in progress)**: making the skill **platform-agnostic** (Claude / Codex / any agent). Phase 1 ✅ — removed all `~/.hermes/` hardcoded paths via a single data dir (`academic-report/config/`); de-branded "Academic Report" → "Academic Report". Phase 2 ✅ — **single config source**: `academic-report/config/.env` (copied from `.env.example`); config_manager getters now read env vars (SMTP / LLM / API keys / report params); deleted legacy `env.example` + `config.example.yaml`; `.gitignore` updated. Scheduled-feature removal (Phase 5) and SKILL.md cleanup (Phase 3) pending. / 重构——去 Hermes 化与配置统一（2026-08-02，进行中）：技能改为**平台无关**（Claude / Codex / 任意 agent）。Phase 1 ✅——以单一数据目录 `academic-report/config/` 取代全部 `~/.hermes/` 硬编码路径；品牌串去 Hermes。Phase 2 ✅——**唯一配置来源** `config/.env`（由 `.env.example` 复制）；config_manager getter 改读环境变量；删除旧 `env.example` + `config.example.yaml`；更新 `.gitignore`。周期功能移除（Phase 5）与 SKILL.md 清理（Phase 3）待办。
 
 - [x] **Documentation Consolidation (2026-07-31)**: repo reorg — design/plan/report files consolidated under `docs/` & `docs/notes/`; README skill name aligned to `academic-report` (matches `name:` field); test counts corrected to **308**; project-structure block fixed (removed non-existent `references/` + `report_template.md`, noted `reports/` as gitignored); 作品展示 sample-report links repointed to `examples/`; source `SKILL.md` switched to portable relative paths. / 文档整理（2026-07-31）：目录重组——设计/计划/报告文件归入 `docs/` 与 `docs/notes/`；README 技能名对齐 `academic-report`（与 `name:` 字段一致）；测试数校正为 **308**；项目结构块修正（删除不存在的 `references/` + `report_template.md`，标注 `reports/` 为 gitignore）；作品展示 报告样本链接改指 `examples/`；源码 `SKILL.md` 改可移植相对路径。
 
@@ -364,14 +364,14 @@ python3 --version
 pip list | grep -E "arxiv|scholarly|jinja2"
 
 # Test config loading (from config/.env) / 测试配置加载（来自 config/.env）
-python agent-scholar/scripts/config_manager.py
+python academic-report/scripts/config_manager.py
 ```
 
 ### Function Tests / 功能测试
 
 ```bash
 # Test basic search (generate only, no email) / 测试基本检索（只生成不发送）
-cd agent-scholar
+cd academic-report
 python scripts/pipeline.py "搜索机器学习论文" --no-email --max-results 5
 
 # Test email configuration / 测试邮件配置
@@ -430,7 +430,7 @@ Contributions are welcome! Please report issues or suggest improvements! / 欢�
 
 ## 📚 Related Resources / 相关资源
 
-- [Implementation Plan / 实施计划文档](docs/agent-scholar%20skill实施计划.md)
+- [Implementation Plan / 实施计划文档](docs/academic-report%20skill实施计划.md)
 - [Portfolio / 作品展示](作品展示/README.md) — 求职/科研申请作品集(技术文档、Demo 脚本、使用案例、性能评估、对比表格)
 
 ---
@@ -453,7 +453,7 @@ Contributions are welcome! Please report issues or suggest improvements! / 欢�
 3. Check log files for detailed error messages / 查看日志文件获取详细错误信息
 4. **SMTP timeout `[WinError 10060]` / SMTP 连接超时**：直连被墙（防火墙 DPI / 全局代理把国内 SMTP 也路由到墙外）时属正常——`email_sender` 会**自动回退**到本地 SOCKS 代理（探测 `127.0.0.1:{7897,7890,1080,...}`，如 Clash/V2Ray）。若仍失败：确认本地代理在跑、或显式设 `SMTP_SOCKS_PROXY=socks5://127.0.0.1:7897`。可用 `python scripts/email_sender.py --test` 单独排查（日志打印策略链与命中策略）。/ Direct connection blocked (firewall DPI / global proxy routing domestic SMTP abroad) is expected — `email_sender` **auto-falls-back** to a local SOCKS proxy (probes `127.0.0.1:{7897,7890,1080,...}`, e.g. Clash/V2Ray). If still failing: ensure the local proxy is running, or set `SMTP_SOCKS_PROXY=socks5://127.0.0.1:7897` explicitly. Run `python scripts/email_sender.py --test` to isolate (logs print the strategy chain and the hit strategy).
    - **历史根因（v1.1.1 已修，2026-07-21）**：本地 SOCKS 端口探测曾误用 `socket` 类的 `create_connection`（实为模块函数），导致直连失败且无环境变量代理时兜底探测抛 `AttributeError`、回退彻底无法启动。已改用模块级 `_REAL_CREATE_CONNECTION`，回归测试 `TestAutoLocalSocksProbe` 锁死。/ **Historical root cause (fixed in v1.1.1, 2026-07-21)**: the local-SOCKS port probe mistakenly called `create_connection` on the `socket` *class* (it's a module function), so when direct failed with no env-var proxy the fallback crashed with `AttributeError` and email always failed. Fixed to use the module-level `_REAL_CREATE_CONNECTION`; regression-locked by `TestAutoLocalSocksProbe`.
-5. **看到「发送冷却中」属正常**（v1.3.0）：认证失败（含 QQ 登录限频的假性 535）后，`email_sender` 会**指数退避冷却**（30→60→120→300s）并自动拒发（不再登录 QQ，避免轰炸加重限频）。等待冷却结束或设 `EMAIL_SKIP_COOLDOWN=1` 手动强制。每次发送（成功/失败/冷却）都记录在 `agent-scholar/config/email_sends.jsonl`，`tail` 即可排查。/ **"In cooldown" is expected** (v1.3.0): after an auth failure (incl. QQ throttle's false 535), `email_sender` **backs off exponentially** (30→60→120→300s) and auto-skips sending (no QQ login, to avoid deepening the throttle). Wait it out, or set `EMAIL_SKIP_COOLDOWN=1` to force. Every attempt (success/fail/cooldown) is logged to `agent-scholar/config/email_sends.jsonl` — `tail` it to diagnose.
+5. **看到「发送冷却中」属正常**（v1.3.0）：认证失败（含 QQ 登录限频的假性 535）后，`email_sender` 会**指数退避冷却**（30→60→120→300s）并自动拒发（不再登录 QQ，避免轰炸加重限频）。等待冷却结束或设 `EMAIL_SKIP_COOLDOWN=1` 手动强制。每次发送（成功/失败/冷却）都记录在 `academic-report/config/email_sends.jsonl`，`tail` 即可排查。/ **"In cooldown" is expected** (v1.3.0): after an auth failure (incl. QQ throttle's false 535), `email_sender` **backs off exponentially** (30→60→120→300s) and auto-skips sending (no QQ login, to avoid deepening the throttle). Wait it out, or set `EMAIL_SKIP_COOLDOWN=1` to force. Every attempt (success/fail/cooldown) is logged to `academic-report/config/email_sends.jsonl` — `tail` it to diagnose.
 
 ### Q: How to disable preprints? / 如何禁用预印本？
 
@@ -465,7 +465,7 @@ Contributions are welcome! Please report issues or suggest improvements! / 欢�
 
 ```bash
 # 系统 cron 示例：每周一 09:00 跑一次 / system cron example: every Monday 09:00
-# 0 9 * * 1  cd /path/to/agent-scholar && python scripts/pipeline.py "搜索 machine learning 论文，发到我邮箱"
+# 0 9 * * 1  cd /path/to/academic-report && python scripts/pipeline.py "搜索 machine learning 论文，发到我邮箱"
 ```
 
 ---
@@ -478,7 +478,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) file for 
 
 ## 👥 Authors / 作者
 
-Agent Scholar Team
+Academic Report Team
 
 ---
 
@@ -492,8 +492,8 @@ Agent Scholar Team
 
 ## 📮 Contact / 联系方式
 
-- Issue Feedback / 问题反馈: [GitHub Issues](https://github.com/your-username/agent-scholar-2.0/issues)
-- Email / 邮件联系: agent-scholar@example.com
+- Issue Feedback / 问题反馈: [GitHub Issues](https://github.com/your-username/academic-report-2.0/issues)
+- Email / 邮件联系: academic-report@example.com
 
 ---
 

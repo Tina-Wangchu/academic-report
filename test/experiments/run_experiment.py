@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 # 让脚本能 import scripts 模块
-SCRIPTS = Path(__file__).resolve().parents[2] / "agent-scholar" / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "academic-report" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from utils import SearchIntent  # noqa: E402

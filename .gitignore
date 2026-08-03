@@ -5,14 +5,14 @@ __pycache__/
 *.egg-info/
 
 # Generated reports & experiment output（pipeline 每次运行的 reports/{时间戳}/ 自动继承忽略）
-agent-scholar/scripts/reports/
+academic-report/scripts/reports/
 test/experiments/output/
 test/experiments/__pycache__/
 # test-report/ 分模块测试运行的生成结果（保留 run_modules.py 脚本，忽略 json/md/html 记录）
 test-report/*
 !test-report/run_modules.py
 
-# 运行期数据（生成在 agent-scholar/config/ 下，与 .env 同目录）
+# 运行期数据（生成在 academic-report/config/ 下，与 .env 同目录）
 # .env 是用户唯一配置，必须忽略；.env.example 是模板，必须保留
 *.env
 .env
@@ -37,7 +37,7 @@ Thumbs.db
 
 # --- Reorganized 2026-07-30 ---
 /reports/
-agent-scholar/reports/
+academic-report/reports/
 .pytest_cache/
 .claude/
 _*.py

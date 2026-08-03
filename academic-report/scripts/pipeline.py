@@ -176,7 +176,7 @@ def run_pipeline(user_input: str,
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent Scholar 全链路：检索→报告→邮件")
+    parser = argparse.ArgumentParser(description="Academic Report 全链路：检索→报告→邮件")
     parser.add_argument("input", help="用户自然语言输入")
     parser.add_argument("--language", default=None, choices=["zh", "en", "bilingual"],
                         help="报告语言（默认读 .env DEFAULT_LANGUAGE）")

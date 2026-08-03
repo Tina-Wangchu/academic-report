@@ -8,7 +8,7 @@ import sys
 import os
 
 # 添加scripts目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent-scholar', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'academic-report', 'scripts'))
 
 from paper_search import ArxivSearcher, SemanticScholarSearcher, OpenAlexSearcher, PaperSearcher
 from utils import SearchIntent

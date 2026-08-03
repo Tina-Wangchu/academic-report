@@ -326,4 +326,4 @@ python -m paper_filter
 ---
 
 **最后更新**: 2026-07-11
-**维护者**: Agent Scholar Team
+**维护者**: Academic Report Team

@@ -8,7 +8,7 @@
 
 **每次创建或修改文件之前**，你必须：
 
-1. 阅读 `docs/agent-scholar skill实施计划.md` 以重新理解项目的完整意图和需求
+1. 阅读 `docs/academic-report skill实施计划.md` 以重新理解项目的完整意图和需求
 2. 使你的实现与该计划中的详细规范保持一致（2357 行详细的实现代码）
 3. 确保你的更改支持 docs/design-init.txt 中指定的 6 个核心模块和 2 种功能模式
 
@@ -18,7 +18,7 @@
 
 **每次代码修改或文件创建之后**，你必须：
 
-1. 更新 `docs/agent-scholar skill实施计划.md`：
+1. 更新 `docs/academic-report skill实施计划.md`：
    - 将已实现的模块标记为 ✅ 完成
    - 更新进度部分
    - 添加任何新的实现细节或代码更改
@@ -34,7 +34,7 @@
 
 ## 项目概述
 
-Agent Scholar 是一个**平台无关的 AI Agent 技能**（可用于 Claude、Codex 等，不依赖任何特定 Agent 运行环境），可执行自动化学术论文搜索、分析和报告生成并通过电子邮件发送。它与多个学术数据源（arXiv、Semantic Scholar、OpenAlex）集成以检索论文，智能过滤和排序，提取关键信息，并生成通过电子邮件发送的格式化学术报告。
+Academic Report 是一个**平台无关的 AI Agent 技能**（可用于 Claude、Codex 等，不依赖任何特定 Agent 运行环境），可执行自动化学术论文搜索、分析和报告生成并通过电子邮件发送。它与多个学术数据源（arXiv、Semantic Scholar、OpenAlex）集成以检索论文，智能过滤和排序，提取关键信息，并生成通过电子邮件发送的格式化学术报告。
 
 ## 架构
 
@@ -58,11 +58,11 @@ Agent Scholar 是一个**平台无关的 AI Agent 技能**（可用于 Claude、
 
 ### 模块架构
 
-系统遵循管道架构，在 `agent-scholar/scripts/` 中包含 6 个核心模块 + 2 种模式/基础设施模块：
+系统遵循管道架构，在 `academic-report/scripts/` 中包含 6 个核心模块 + 2 种模式/基础设施模块：
 
 **已完成模块** ✅：
 - `utils.py` - 数据模型（`Paper`、`SearchIntent`）和工具函数（APA 引用、日期解析、`schedule_interval`）
-- `config_manager.py` - 统一配置管理（**唯一配置来源 `agent-scholar/config/.env`**，由 `.env.example` 复制；getter 优先读环境变量）
+- `config_manager.py` - 统一配置管理（**唯一配置来源 `academic-report/config/.env`**，由 `.env.example` 复制；getter 优先读环境变量）
 - `rate_limiter.py` - 多数据源的 API 限流处理器（已接入 arXiv/Semantic Scholar/OpenAlex；CrossRef/PubMed 已配置限流但 Searcher 暂未接入）
 - `intent_parser.py` - 自然语言解析器，提取搜索参数 + **调度检测**（`is_scheduled`/`schedule`）
 - `paper_search.py` - 多源论文搜索器（arXiv、Semantic Scholar、OpenAlex；日期过滤）
@@ -86,22 +86,22 @@ Agent Scholar 是一个**平台无关的 AI Agent 技能**（可用于 Claude、
 - `Paper`（dataclass）- 具有分析字段的核心论文元数据
 - `SearchIntent`（dataclass）- 解析的用户搜索参数
 
-**配置层次**（唯一配置文件 `agent-scholar/config/.env`）：
+**配置层次**（唯一配置文件 `academic-report/config/.env`）：
 1. 真实环境变量（`os.environ`，优先级最高，便于 CI/容器临时覆盖）
 2. `.env` 文件（用户配置：密钥 + 非敏感参数，由 `.env.example` 复制而来）
 3. 代码默认值（各 getter 的 default 参数兜底）
 
-> 不读取 `~/.hermes/` 或任何其它路径。全部可用配置项见 `agent-scholar/config/.env.example`。
+> 不读取 `~/.hermes/` 或任何其它路径。全部可用配置项见 `academic-report/config/.env.example`。
 
 ## 必要配置
 
 ### 必需设置
 
-在任何开发或测试之前（从项目根目录 `agent-scholar/` 出发）：
+在任何开发或测试之前（从项目根目录 `academic-report/` 出发）：
 
 ```bash
 # 1. 安装依赖
-cd agent-scholar
+cd academic-report
 pip install -r requirements.txt
 
 # 2. 配置：复制模板并填入你自己的值（.env 是本工程唯一配置来源）
@@ -110,7 +110,7 @@ cp config/.env.example config/.env
 #   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD
 ```
 
-`.env` 中其余配置（LLM 分析、报告参数、代理）均为可选，详见 `agent-scholar/config/.env.example` 内的分组注释。
+`.env` 中其余配置（LLM 分析、报告参数、代理）均为可选，详见 `academic-report/config/.env.example` 内的分组注释。
 
 ### Gmail 应用密码
 
@@ -122,13 +122,13 @@ cp config/.env.example config/.env
 
 ```bash
 # 测试配置加载
-python3 agent-scholar/scripts/config_manager.py
+python3 academic-report/scripts/config_manager.py
 
 # 测试意图解析
-python3 agent-scholar/scripts/intent_parser.py --input "搜索最近的深度学习论文"
+python3 academic-report/scripts/intent_parser.py --input "搜索最近的深度学习论文"
 
 # 测试邮件配置（需要 SMTP 设置）
-python3 agent-scholar/scripts/email_sender.py --test
+python3 academic-report/scripts/email_sender.py --test
 ```
 
 ### 测试文件要求
@@ -175,14 +175,14 @@ pytest test/test_paper_search.py::test_arxiv_search
 pytest test/ -v
 
 # 运行覆盖率测试
-pytest test/ --cov=agent_scholar --cov-report=html
+pytest test/
 ```
 
 ### Hermes Agent 集成
 
 ```bash
 # 将技能安装到 Hermes
-cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/academic-report
+cp -r academic-report-2.0/academic-report ~/.hermes/skills/academic-report
 
 # 测试技能加载
 hermes chat -q "/academic-report 帮助"
@@ -271,7 +271,7 @@ hermes chat
 
 - **SKILL.md** - 技能定义与使用说明（平台无关；将在 Phase 3 进一步精简，去除历史修改残留）
 - **docs/design-init.txt** - 原始中文需求文档（6 个核心模块，2 种模式）
-- **docs/agent-scholar skill实施计划.md** - 详细实施计划（2000+ 行，包含所有 6 个模块的完整代码）
+- **docs/academic-report skill实施计划.md** - 详细实施计划（2000+ 行，包含所有 6 个模块的完整代码）
 - **docs/报告格式设计.md** - 权威双语（中/英）报告格式规范；模块 5 和报告模板必须符合
 - **requirements.txt** - Python 依赖（arxiv、scholarly、pandas、markdown、jinja2、secure-smtplib、python-dateutil、pyyaml）
 
@@ -279,7 +279,7 @@ hermes chat
 
 ### 实现 `paper_search.py` 时：
 
-遵循 `docs/agent-scholar skill实施计划.md` 实施计划中的模式（第 518+ 行）：
+遵循 `docs/academic-report skill实施计划.md` 实施计划中的模式（第 518+ 行）：
 
 ```python
 class PaperSearcher:

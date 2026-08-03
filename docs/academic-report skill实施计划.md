@@ -1,10 +1,10 @@
-# Agent Scholar 学术搜索 Skill - 完整详细实施计划（平台无关）
+# Academic Report 学术搜索 Skill - 完整详细实施计划（平台无关）
 
 > ## 🔄 重构变更记录（2026-08-02，进行中）
 >
 > 本计划原文以 Hermes Agent 为目标平台编写，现正在进行**去 Hermes 化重构**，使本技能成为平台无关的通用 AI Agent Skill（可用于 Claude、Codex 等任意 Agent 运行环境）。已完成：
-> - **Phase 1 ✅ 去 Hermes 化**：新增 `utils.get_skill_data_dir()`，所有运行期路径（配置、缓存、日志、冷却、时间戳）统一指向 `agent-scholar/config/`；删除全部 `~/.hermes/` 硬编码；品牌串 "Agent Scholar for Hermes Agent" → "Agent Scholar"。
-> - **Phase 2 ✅ 配置统一**：**唯一配置来源** `agent-scholar/config/.env`（由 `.env.example` 复制）；`config_manager` getter 改为优先读环境变量（SMTP / LLM / API key / 报告参数）；删除旧 `env.example` + `config.example.yaml`；`.gitignore` 已忽略 `.env` 与运行期数据。
+> - **Phase 1 ✅ 去 Hermes 化**：新增 `utils.get_skill_data_dir()`，所有运行期路径（配置、缓存、日志、冷却、时间戳）统一指向 `academic-report/config/`；删除全部 `~/.hermes/` 硬编码；品牌串 "Academic Report" → "Academic Report"。
+> - **Phase 2 ✅ 配置统一**：**唯一配置来源** `academic-report/config/.env`（由 `.env.example` 复制）；`config_manager` getter 改为优先读环境变量（SMTP / LLM / API key / 报告参数）；删除旧 `env.example` + `config.example.yaml`；`.gitignore` 已忽略 `.env` 与运行期数据。
 > - **全部完成 ✅**：Phase 3 / 5 / 6 / 7 均已完成。研究缺口逻辑已从「论文缺陷评价」改为「给读者的深挖方向」（LLM 主 + 规则回退）。
 > - **后续 ✅ 数据源修复（2026-08-03）**：arXiv 检索从坏掉的 `arxiv` 库（HTTP 301 不跟随重定向）改为 `requests`+Atom 直查（0→5 篇）；Semantic Scholar `_build_year_filter` 修正（`2023-,-2026`→`2023-2026`）+ 429 退避重试；`PaperSearcher.search_errors` 让单源失败不再静音（写入 run_data.json）。S2 缺免费 key 的 429 问题暂缓，记录于 `docs/known_issues.md`（含配 key 步骤）。`requirements.txt` 删 `arxiv==1.4.8`。
 > - **后续 ✅ 时间戳运行日志（2026-08-03）**：pipeline 每次运行产出 `reports/{YYYY-MM-DD_HHMMSS}/` 文件夹，内含 `report.md` + `report.html` + `run_data.json`（各模块原始返回：intent / papers_raw / papers_filtered(含四要素) / classified / research_directions / search_errors / timings）。`report_generator` 新增 `generate_both()`——`_prepare` 只跑一次同时产 MD+HTML，避免 LLM 四要素/研究方向重算。
@@ -21,9 +21,9 @@
 ## 项目文件目录结构
 
 ```
-agent-scholar-2.0/
+academic-report-2.0/
 │
-├── agent-scholar/                    # 主技能目录
+├── academic-report/                    # 主技能目录
 │   ├── SKILL.md                     # ✅ Hermes Agent 技能主定义文件
 │   │                                #    - Frontmatter 配置（元数据、环境变量、blueprint等）
 │   │                                #    - 技能使用说明（When to Use、Procedure、Pitfalls等）
@@ -145,7 +145,7 @@ agent-scholar-2.0/
 │                                   #    六大板块详细要求
 │                                   #    用途：项目需求参考
 │
-└── agent-scholar skill实施计划.md   # ✅ 本实施计划文档
+└── academic-report skill实施计划.md   # ✅ 本实施计划文档
                                     #    完整的功能需求和实施方案
                                     #    详细的技术实现代码
                                     #    测试和部署指南
@@ -298,7 +298,7 @@ pip install -e .
 
 #### 2. 安装本技能依赖
 ```bash
-cd agent-scholar-2.0/agent-scholar
+cd academic-report-2.0/academic-report
 pip install -r requirements.txt
 ```
 
@@ -322,10 +322,10 @@ hermes config set skills.config.academic.email_recipient your@email.com
 #### 5. 安装技能到 Hermes
 ```bash
 # 方法1：直接复制到 Hermes 技能目录
-cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/
+cp -r academic-report-2.0/academic-report ~/.hermes/skills/
 
 # 方法2：创建符号链接（开发时推荐）
-ln -s $(pwd)/agent-scholar ~/.hermes/skills/academic-report
+ln -s $(pwd)/academic-report ~/.hermes/skills/academic-report
 ```
 
 ### API 配置说明
@@ -405,7 +405,7 @@ hermes chat --toolsets skills -q "列出所有技能"
 hermes chat -q "/academic-report 帮助"
 
 # 测试邮件配置
-python3 agent-scholar/scripts/email_sender.py --test
+python3 academic-report/scripts/email_sender.py --test
 ```
 
 ---
@@ -1752,7 +1752,7 @@ class ReportGenerator:
         # 报告尾部
         lines.append("---")
         lines.append("")
-        lines.append("**报告生成**: Agent Scholar for Hermes Agent")
+        lines.append("**报告生成**: Academic Report")
         lines.append("**数据源**: arXiv, Semantic Scholar, OpenAlex")
         lines.append("")
 
@@ -2028,7 +2028,7 @@ if __name__ == '__main__':
 
 ---
 
-**报告生成**: Agent Scholar for Hermes Agent
+**报告生成**: Academic Report
 ```
 
 #### 文件：`templates/report_html_template.html`
@@ -2198,7 +2198,7 @@ if __name__ == '__main__':
         {{content}}
         <div class="footer">
             <p>报告生成时间: {{generation_time}}</p>
-            <p>由 Agent Scholar for Hermes Agent 自动生成</p>
+            <p>由 Academic Report 自动生成</p>
         </div>
     </div>
 </body>
@@ -2307,7 +2307,7 @@ class EmailSender:
                      file_format: str) -> MIMEMultipart:
         """创建邮件对象"""
         msg = MIMEMultipart()
-        msg['From'] = formataddr(('Agent Scholar', sender))
+        msg['From'] = formataddr(('Academic Report', sender))
         msg['To'] = recipient
 
         # 生成主题
@@ -2364,11 +2364,11 @@ class EmailSender:
                     <p>最新的学术研究报告已生成完成，请查收附件。</p>
                     <p><strong>报告格式:</strong> {file_format}</p>
                     <p><strong>文件名:</strong> {report_file.name}</p>
-                    <p>本报告由 Agent Scholar for Hermes Agent 自动生成。</p>
+                    <p>本报告由 Academic Report 自动生成。</p>
                 </div>
                 <div class="footer">
                     <p>如有问题，请回复此邮件。</p>
-                    <p>© {datetime.now().year} Agent Scholar</p>
+                    <p>© {datetime.now().year} Academic Report</p>
                 </div>
             </div>
         </body>

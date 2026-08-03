@@ -110,7 +110,7 @@ def get_skill_dir() -> Path:
 
 def get_skill_data_dir() -> Path:
     """
-    获取 skill 配置/数据目录（唯一路径：项目内 agent-scholar/config/）。
+    获取 skill 配置/数据目录（唯一路径：项目内 academic-report/config/）。
 
     所有配置与运行期数据统一存放于此（不读取任何其它路径）：
       - .env                              用户配置（唯一配置来源，由 .env.example 复制而来）

@@ -12,7 +12,7 @@ S2 源有**两个独立问题**，叠加导致 0 篇：
 
 ### 问题 1：年份过滤参数畸形 —— ✅ 已修复
 
-- **位置**：`agent-scholar/scripts/paper_search.py` → `SemanticScholarSearcher._build_year_filter`
+- **位置**：`academic-report/scripts/paper_search.py` → `SemanticScholarSearcher._build_year_filter`
 - **原 bug**：`start_date` 与 `end_date` 同时存在时，产出 `"2023-,-2026"`（两个半开区间用逗号拼接），S2 API 视为非法参数 → 返回空 / 400。
 - **正确格式**：`"2023-2026"`（闭区间）。
 - **修复**：改为 `if start and end: f"{start.year}-{end.year}"`；仅 start → `f"{start.year}-"`；仅 end → `f"-{end.year}"`。
@@ -38,7 +38,7 @@ S2 源有**两个独立问题**，叠加导致 0 篇：
 ## 彻底解决步骤（未来需要时）
 
 1. 在 [semanticscholar.org/product/api](https://www.semanticscholar.org/product/api#api-key-form) 申请免费 API key（填表，秒批）。
-2. 复制 `agent-scholar/config/.env.example` → `agent-scholar/config/.env`（若尚未创建）。
+2. 复制 `academic-report/config/.env.example` → `academic-report/config/.env`（若尚未创建）。
 3. 在 `.env` 中填写：`SEMANTIC_SCHOLAR_API_KEY=你的key`
 4. 重跑 pipeline —— S2 源应返回论文；`run_data.json` 的 `source_distribution` 出现 `semantic_scholar`，`search_errors` 不再有 S2 条目。
 
@@ -49,4 +49,4 @@ S2 源有**两个独立问题**，叠加导致 0 篇：
 
 ---
 
-*关联代码：`agent-scholar/scripts/paper_search.py`（`SemanticScholarSearcher` / `PaperSearcher.search_errors`）*
+*关联代码：`academic-report/scripts/paper_search.py`（`SemanticScholarSearcher` / `PaperSearcher.search_errors`）*

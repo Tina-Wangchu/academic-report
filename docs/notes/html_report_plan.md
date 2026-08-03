@@ -1,6 +1,6 @@
 # HTML 报告版本计划 / HTML Report Plan
 
-> 为 Agent Scholar 的 **HTML 报告**制定的设计与实现计划。当前 HTML 由 Markdown 自动转换 + 通用样式表生成，缺乏针对「热点 / 四要素摘录 / 速览」的视觉结构。本计划提出**结构化 HTML 渲染**方案，使 HTML 报告专业、可速读、可导航、可打印。
+> 为 Academic Report 的 **HTML 报告**制定的设计与实现计划。当前 HTML 由 Markdown 自动转换 + 通用样式表生成，缺乏针对「热点 / 四要素摘录 / 速览」的视觉结构。本计划提出**结构化 HTML 渲染**方案，使 HTML 报告专业、可速读、可导航、可打印。
 >
 > Design & implementation plan for the HTML report. The current HTML is auto-converted from Markdown with a generic stylesheet, lacking visual structure for hotspots / four-element excerpts / overview. This plan proposes a **structured HTML rendering** approach.
 

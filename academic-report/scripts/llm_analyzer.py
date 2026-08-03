@@ -284,7 +284,7 @@ def _unpaywall_pdf_url(doi: str) -> str:
         return ""
     try:
         r = requests.get(f"https://api.unpaywall.org/v2/{doi}",
-                         params={"email": "agent-scholar@example.com"},
+                         params={"email": "academic-report@example.com"},
                          timeout=10).json()
         loc = r.get("best_oa_location") or {}
         return loc.get("url_for_pdf") or ""
@@ -315,7 +315,7 @@ def _fetch_url_text(url: str, timeout: float = 15.0) -> str:
     """抓单个 URL 的文本：PDF→fitz；HTML/文本→去标签。失败 → ''。"""
     try:
         resp = requests.get(url, timeout=timeout,
-                            headers={"User-Agent": "agent-scholar/1.0"})
+                            headers={"User-Agent": "academic-report/1.0"})
         if resp.status_code != 200:
             return ""
         ctype = resp.headers.get("content-type", "").lower()

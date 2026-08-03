@@ -8,7 +8,7 @@ import pytest
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent-scholar', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'academic-report', 'scripts'))
 
 from utils import Paper
 from paper_analyzer import PaperAnalyzer, CitationFinder, Reference

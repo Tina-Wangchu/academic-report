@@ -200,4 +200,4 @@ python email_sender.py --test   # 真实排查（需配 ~/.hermes/.env；日志�
 ---
 
 **最后更新**: 2026-07-21（v1.3.0 增冷却守卫；v1.2.0 增发送记录持久化日志；v1.1.1 修本地 SOCKS 探测 `create_connection` bug）
-**维护者**: Agent Scholar Team
+**维护者**: Academic Report Team

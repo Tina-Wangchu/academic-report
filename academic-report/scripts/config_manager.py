@@ -2,7 +2,7 @@
 配置管理器
 通用配置与环境变量管理（平台无关，单一路径）
 
-唯一配置来源：agent-scholar/config/.env（由 .env.example 复制而来）。
+唯一配置来源：academic-report/config/.env（由 .env.example 复制而来）。
 配置查找优先级（从高到低）：
   1. 真实环境变量（os.environ，最高优先级，便于 CI/容器临时覆盖）
   2. config/.env 文件（用户配置，唯一持久化来源）
