@@ -1,8 +1,20 @@
-# Hermes Agent 学术搜索 Skill - 完整详细实施计划
+# Agent Scholar 学术搜索 Skill - 完整详细实施计划（平台无关）
+
+> ## 🔄 重构变更记录（2026-08-02，进行中）
+>
+> 本计划原文以 Hermes Agent 为目标平台编写，现正在进行**去 Hermes 化重构**，使本技能成为平台无关的通用 AI Agent Skill（可用于 Claude、Codex 等任意 Agent 运行环境）。已完成：
+> - **Phase 1 ✅ 去 Hermes 化**：新增 `utils.get_skill_data_dir()`，所有运行期路径（配置、缓存、日志、冷却、时间戳）统一指向 `agent-scholar/config/`；删除全部 `~/.hermes/` 硬编码；品牌串 "Agent Scholar for Hermes Agent" → "Agent Scholar"。
+> - **Phase 2 ✅ 配置统一**：**唯一配置来源** `agent-scholar/config/.env`（由 `.env.example` 复制）；`config_manager` getter 改为优先读环境变量（SMTP / LLM / API key / 报告参数）；删除旧 `env.example` + `config.example.yaml`；`.gitignore` 已忽略 `.env` 与运行期数据。
+> - **全部完成 ✅**：Phase 3 / 5 / 6 / 7 均已完成。研究缺口逻辑已从「论文缺陷评价」改为「给读者的深挖方向」（LLM 主 + 规则回退）。
+> - **后续 ✅ 数据源修复（2026-08-03）**：arXiv 检索从坏掉的 `arxiv` 库（HTTP 301 不跟随重定向）改为 `requests`+Atom 直查（0→5 篇）；Semantic Scholar `_build_year_filter` 修正（`2023-,-2026`→`2023-2026`）+ 429 退避重试；`PaperSearcher.search_errors` 让单源失败不再静音（写入 run_data.json）。S2 缺免费 key 的 429 问题暂缓，记录于 `docs/known_issues.md`（含配 key 步骤）。`requirements.txt` 删 `arxiv==1.4.8`。
+> - **后续 ✅ 时间戳运行日志（2026-08-03）**：pipeline 每次运行产出 `reports/{YYYY-MM-DD_HHMMSS}/` 文件夹，内含 `report.md` + `report.html` + `run_data.json`（各模块原始返回：intent / papers_raw / papers_filtered(含四要素) / classified / research_directions / search_errors / timings）。`report_generator` 新增 `generate_both()`——`_prepare` 只跑一次同时产 MD+HTML，避免 LLM 四要素/研究方向重算。
+> - **SMTP 实测（2026-08-03）**：用户 `config/.env` 配 QQ 邮箱（`smtp.qq.com:465` + 授权码）作发件、Gmail 作默认收件人；已实测 QQ→QQ、QQ→Gmail 真实发送成功。
+>
+> ⚠️ 下方原始计划保留作为各模块设计的权威参考，但其中涉及 `~/.hermes/`、`config.example.yaml`、`env.example`、Hermes frontmatter、`scheduler`/`timestamp_manager` 的内容**已过时**——一切以本变更记录为准。
 
 ## 项目概述
 
-基于 design-init.txt 的要求，创建一个完整的 Hermes Agent Skill，实现学术搜索、分析、报告生成和邮件发送的全流程自动化。
+基于 design-init.txt 的要求，创建一个完整的学术搜索 AI Agent Skill（平台无关，不依赖特定 Agent 运行环境），实现学术搜索、分析、报告生成和邮件发送的全流程自动化。
 
 ---
 
@@ -21,14 +33,11 @@ agent-scholar-2.0/
 │   │                                #    - arxiv, scholarly, requests, pandas, markdown, jinja2等
 │   │                                #    用途：安装所需的Python包
 │   │
-│   ├── config/                       # 配置文件目录
-│   │   ├── config.example.yaml       # ✅ Hermes config.yaml 配置示例
-│   │   │                            #    - 默认语言、时间范围、最大结果数、邮件接收者等
-│   │   │                            #    用途：用户可复制此文件作为配置模板
-│   │   │
-│   │   └── env.example              # ✅ 环境变量配置示例
-│   │                                #    - SMTP配置、API密钥等
-│   │                                #    用途：指导用户设置必需的环境变量
+│   ├── config/                       # 配置文件目录（唯一配置来源 / Phase 2 重构后）
+│   │   └── .env.example             # ✅ 环境变量配置模板（用户 cp 为 .env 填值）
+│   │                                #    - SMTP、LLM、API key、报告参数、代理（全部集中于此）
+│   │                                #    用途：唯一配置来源；.env 不入 git，.env.example 入 git
+│   │                                #    注：旧 config.example.yaml / env.example 已删除
 │   │
 │   ├── scripts/                      # Python 脚本目录（核心功能模块）
 │   │   ├── __init__.py              # ✅ Python 包初始化文件
@@ -152,7 +161,7 @@ agent-scholar-2.0/
 | 文件 | 模块 | 状态 | 用途 |
 |------|------|------|------|
 | `utils.py` | 工具库 | ✅ 完成 | 数据模型（含 condensed_abstract / tldr 字段）、工具函数 |
-| `config_manager.py` | 配置管理 | ✅ 完成 | 统一管理配置；`_load_env_file` 自动加载 `~/.hermes/.env`（不覆盖已有环境变量）（test_config_manager.py 5项） |
+| `config_manager.py` | 配置管理 | ✅ 完成 | 统一管理配置；`_load_env_file` 自动加载 `config/.env`（不覆盖已有环境变量）；**Phase 2 后 getter 优先读环境变量**（SMTP/LLM/API key/报告参数），config.yaml 仅作可选覆盖（test_config_manager.py 5项） |
 | `rate_limiter.py` | 限流处理 | ✅ 完成 | API限流和等待机制 |
 | `intent_parser.py` | 意图解析 | ✅ 完成 | 解析用户自然语言输入 |
 | `paper_search.py` | 论文搜索 | ✅ 完成 | 多数据源并行检索、去重合并；OpenAlex 摘要重建；S2 TL;DR（tldr 字段）接入；实验驱动修复多处 bug（test_paper_search.py 27项） |
@@ -991,7 +1000,7 @@ class PaperSearcher:
 > 6. **新增 `_filter_by_time`**：年份级时间安全网（`intent.start_date/end_date` × `paper.year`，闭区间，`year≤0` 保留），作为 `paper_search` API 日期过滤（L1）之下的 L2 兜底，保证报告涵盖时间与实际收录一致。
 > 7. **热点收敛与相关性（报告格式设计.md §10.3，实验驱动）**：兜底关键词与已知主题桶**成员 <2 篇并入「其他」**，消除单论文噪声热点（E1 17→5、E2 18→2）；`_extract_top_keyword` 扩展停用词（过滤 approach/method/results 等通用虚词）并接收 `topic_hint`（查询+领域）**优先选取与搜索主题相关的关键词**（如 E2 形成 `Bayesian(15)` 主热点）。
 >
-> 测试：`test/test_paper_filter.py`（27 项全通过）。详见 `scripts/paper_filter_implementation_detail.md`（含时间/主题过滤机制与排序规则的详细阐述）。
+> 测试：`test/test_paper_filter.py`（27 项全通过）。详见 `../details/paper_filter_implementation_detail.md`（含时间/主题过滤机制与排序规则的详细阐述）。
 
 **参考实现**（与实际实现等价，保留作为规范说明）：
 
@@ -1220,7 +1229,7 @@ PaperFilter.config = get_config_manager()
 > 7. **创新点不再给空泛默认（报告格式设计.md §10.2，实验驱动）**：无信号词时**从方法子句派生**（`提出：{方法子句} / proposes: {method clause}`），落在论文真实方法上；无摘要时留空（报告不渲染该字段）。
 > 8. **抽取式浓缩摘要（abstract_problem.md，实验驱动）**：新增 `_condense_abstract` 存入 `paper.condensed_abstract`——短摘要全文、长摘要抽取「背景+方法+结果」句拼接、句边界截断**不出现 `...`**；report 的 Abstract 段优先用它，取代原 `[:1500]+"..."` 硬截断。
 >
-> 测试：`test/test_paper_analyzer.py`（35 项全通过）。详见 `scripts/paper_analyzer_implementation_detail.md`。
+> 测试：`test/test_paper_analyzer.py`（35 项全通过）。详见 `../details/paper_analyzer_implementation_detail.md`。
 
 **参考实现**（与实际实现等价，保留作为规范说明）：
 
@@ -1468,7 +1477,7 @@ class PaperAnalyzer:
 > 9. **数据质量降级（报告格式设计.md §10，实验驱动）**：四要素全空且无摘要时显示占位「（暂无摘要 / No abstract available）」；`classify_by_topic` 传入 `topic_hint`（查询+领域）提升热点与搜索主题的相关性。
 > 10. **单篇块精简（历史）**：单篇论文块**不再单列**「研究内容 / 创新点 / 核心结论」字段——其内容已并入四要素摘录（新方案/效果及局限等）。分析层（`paper_analyzer`）仍内部计算这些子句供速览/整体分析复用，但 `_render_paper` 不再渲染它们；单篇块只保留：基本信息 + 四要素摘录 + APA 引用。
 >
-> 测试：`test/test_report_generator.py`（23 项）+ `test/test_paper_analyzer.py::TestStructuredExtractor`（四要素摘录）+ 真实模块端到端烟雾测试通过。详见 `scripts/report_generator_implementation_detail.md`。
+> 测试：`test/test_report_generator.py`（23 项）+ `test/test_paper_analyzer.py::TestStructuredExtractor`（四要素摘录）+ 真实模块端到端烟雾测试通过。详见 `../details/report_generator_implementation_detail.md`。
 
 **参考实现**（与实际实现等价，保留作为规范说明）：
 
@@ -2206,7 +2215,7 @@ if __name__ == '__main__':
 > 3. **可注入**：`__init__` 接受 `config_manager`/`max_retries`/`retry_delay`/`timeout`，便于测试。
 > 4. 整理局部 import（`datetime`/`time` 提至顶部）、`sys.exit(main())` 正确返回退出码、正文双语。
 >
-> 测试：`test/test_email_sender.py`（17 项全通过，FakeSMTP 不联网）。详见 `scripts/email_sender_implementation_detail.md`。
+> 测试：`test/test_email_sender.py`（17 项全通过，FakeSMTP 不联网）。详见 `../details/email_sender_implementation_detail.md`。
 
 **参考实现**（与实际实现等价，保留作为规范说明）：
 

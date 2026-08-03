@@ -1,6 +1,14 @@
 """
 配置管理器
-管理 Hermes Agent 配置和环境变量
+通用配置与环境变量管理（平台无关，单一路径）
+
+唯一配置来源：agent-scholar/config/.env（由 .env.example 复制而来）。
+配置查找优先级（从高到低）：
+  1. 真实环境变量（os.environ，最高优先级，便于 CI/容器临时覆盖）
+  2. config/.env 文件（用户配置，唯一持久化来源）
+  3. 代码内默认值（各 getter 的 default 参数）
+
+不读取 ~/.hermes/ 或任何其它路径。
 """
 
 import os
@@ -9,24 +17,27 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from utils import get_skill_data_dir
+
 logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    """配置管理器"""
+    """配置管理器（平台无关，单一路径）"""
 
     def __init__(self):
-        """初始化配置管理器"""
-        self.config_path = Path.home() / '.hermes' / 'config.yaml'
-        self.env_path = Path.home() / '.hermes' / '.env'
+        """初始化配置管理器：定位 config/.env（唯一配置来源）与可选的 config/config.yaml。"""
+        data_dir = get_skill_data_dir()
+        self.env_path = data_dir / '.env'             # 唯一配置来源
+        self.config_path = data_dir / 'config.yaml'   # 可选：非敏感默认值
         self._config_cache = None
         self._load_env_file()
 
     def _load_env_file(self):
         """
-        加载 ~/.hermes/.env 到 os.environ（不覆盖已存在的环境变量）。
-        这样 SMTP_* 等密钥写在 .env 里即可被 get_smtp_config 等读到，
-        无需手动 export；真实环境变量优先级仍高于 .env。
+        加载 config/.env 到 os.environ（不覆盖已存在的环境变量）。
+        SMTP_* / LLM_* 等密钥写在 .env 里即可被各 getter 读到，无需手动 export；
+        真实环境变量优先级仍高于 .env 文件。
         """
         if not self.env_path.exists():
             return
@@ -45,27 +56,22 @@ class ConfigManager:
 
     def load_config(self) -> Dict:
         """
-        加载 Hermes 配置文件
+        加载可选的 config.yaml（扁平 schema，顶层即配置键）。
 
         Returns:
-            配置字典
+            配置字典（无 config.yaml 则返回空 dict，由各 getter 用默认值兜底）
         """
         if self._config_cache is not None:
             return self._config_cache
 
         if not self.config_path.exists():
-            logger.warning(f"配置文件不存在: {self.config_path}")
             self._config_cache = {}
             return self._config_cache
 
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
-
-            # 提取技能配置
-            skill_config = config.get('skills', {}).get('config', {}).get('academic', {})
-
-            self._config_cache = skill_config
+            self._config_cache = config if isinstance(config, dict) else {}
             logger.info(f"已加载配置: {self.config_path}")
             return self._config_cache
 
@@ -152,51 +158,99 @@ class ConfigManager:
             'semantic_scholar': os.getenv('SEMANTIC_SCHOLAR_API_KEY', ''),
         }
 
+    # --------------------- 环境变量优先取值 helper --------------------- #
+    # .env 是唯一配置来源（已被 _load_env_file 注入 os.environ）。
+    # 这些 helper 统一「真实环境变量 > config.yaml（可选覆盖）> 默认值」三层回退，
+    # 让 .env 中的非敏感参数（语言、结果数等）也能被各 getter 读到。
+
+    def _env_str(self, env_key: str, cfg_key: str, default: str) -> str:
+        val = os.getenv(env_key)
+        if val and val.strip():
+            return val.strip()
+        cfg_val = self.get(cfg_key, default)
+        return cfg_val if cfg_val else default
+
+    def _env_int(self, env_key: str, cfg_key: str, default: int) -> int:
+        val = os.getenv(env_key) or self.get(cfg_key, None)
+        if val is None or str(val).strip() == '':
+            return default
+        try:
+            return int(str(val).strip())
+        except ValueError:
+            return default
+
+    def _env_bool(self, env_key: str, cfg_key: str, default: bool) -> bool:
+        val = os.getenv(env_key)
+        if val is None or val.strip() == '':
+            val = self.get(cfg_key, None)
+        if val is None:
+            return default
+        if isinstance(val, bool):
+            return val
+        return str(val).strip().lower() in ('1', 'true', 'yes', 'on')
+
+    # ----------------------------- 学术参数 ---------------------------- #
+
     def get_default_language(self) -> str:
-        """获取默认语言设置"""
-        return self.get('default_language', 'bilingual')
+        """获取默认语言设置（DEFAULT_LANGUAGE / default_language）"""
+        return self._env_str('DEFAULT_LANGUAGE', 'default_language', 'bilingual')
 
     def get_default_time_range(self) -> str:
-        """获取默认时间范围"""
-        return self.get('default_time_range', '3y')
+        """获取默认时间范围（DEFAULT_TIME_RANGE / default_time_range）"""
+        return self._env_str('DEFAULT_TIME_RANGE', 'default_time_range', '3y')
 
     def get_max_results(self) -> int:
-        """获取最大结果数"""
-        return int(self.get('max_results', '50'))
+        """获取最大结果数（MAX_RESULTS / max_results）"""
+        return self._env_int('MAX_RESULTS', 'max_results', 50)
 
     def get_email_recipient(self) -> str:
-        """获取默认邮件接收者"""
-        recipient = self.get('email_recipient', '')
+        """获取默认邮件接收者（EMAIL_RECIPIENT → email_recipient → SMTP_USER）"""
+        recipient = self._env_str('EMAIL_RECIPIENT', 'email_recipient', '')
         if not recipient:
-            # 尝试从 SMTP 用户名获取
-            smtp_config = self.get_smtp_config()
-            recipient = smtp_config.get('user', '')
+            # 回退到 SMTP 用户名（发给自己）
+            recipient = self.get_smtp_config().get('user', '')
         return recipient
 
     def is_include_preprints(self) -> bool:
-        """是否包含预印本"""
-        return self.get('include_preprints', True)
+        """是否包含预印本（INCLUDE_PREPRINTS / include_preprints）"""
+        return self._env_bool('INCLUDE_PREPRINTS', 'include_preprints', True)
 
     def get_min_citation_count(self) -> int:
-        """获取最小引用量"""
-        return int(self.get('min_citation_count', '0'))
+        """获取最小引用量（MIN_CITATION_COUNT / min_citation_count）"""
+        return self._env_int('MIN_CITATION_COUNT', 'min_citation_count', 0)
 
     def is_filter_highly_cited(self) -> bool:
-        """是否启用高被引筛选"""
-        return self.get('filter_highly_cited', False)
+        """是否启用高被引筛选（FILTER_HIGHLY_CITED / filter_highly_cited）"""
+        return self._env_bool('FILTER_HIGHLY_CITED', 'filter_highly_cited', False)
 
     def get_highly_cited_threshold(self) -> int:
-        """获取高被引阈值"""
-        return int(self.get('highly_cited_threshold', '100'))
+        """获取高被引阈值（HIGHLY_CITED_THRESHOLD / highly_cited_threshold）"""
+        return self._env_int('HIGHLY_CITED_THRESHOLD', 'highly_cited_threshold', 100)
 
     def is_sci_ei_only(self) -> bool:
-        """是否仅SCI/EI期刊"""
-        return self.get('sci_ei_only', False)
+        """是否仅SCI/EI期刊（SCI_EI_ONLY / sci_ei_only）"""
+        return self._env_bool('SCI_EI_ONLY', 'sci_ei_only', False)
+
+    def get_default_query(self) -> str:
+        """兜底默认查询主题（DEFAULT_QUERY / default_query）"""
+        return self._env_str('DEFAULT_QUERY', 'default_query', '人工智能')
+
+    def get_output_format(self) -> str:
+        """报告输出格式（OUTPUT_FORMAT / output_format）"""
+        return self._env_str('OUTPUT_FORMAT', 'output_format', 'markdown')
+
+    def get_output_dir(self) -> str:
+        """报告输出目录（OUTPUT_DIR / output_dir）"""
+        return self._env_str('OUTPUT_DIR', 'output_dir', 'reports')
+
+    def is_send_email(self) -> bool:
+        """是否默认发送邮件（SEND_EMAIL / send_email）"""
+        return self._env_bool('SEND_EMAIL', 'send_email', True)
 
     def get_llm_config(self) -> Dict[str, Any]:
         """
         LLM 配置（四要素生成式分析用）。
-        优先级：显式 env > config.yaml（skills.config.academic.llm_*）> 默认。
+        优先级：显式 env > config.yaml（llm_* 键，扁平 schema）> 默认。
         默认复用智谱 GLM 的 Anthropic 兼容端点（ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN）。
 
         enabled: 未显式设置时，有 api_key 即视为启用（无 key 自动回退规则）。

@@ -21,7 +21,9 @@ class TestArxivSearcher:
         """测试初始化"""
         searcher = ArxivSearcher()
         assert searcher is not None
-        assert searcher.client is not None
+        assert searcher.BASE_URL == "https://export.arxiv.org/api/query"
+        assert searcher.rate_limiter is not None
+        assert searcher.last_error is None
 
     def test_search_basic(self):
         """测试基础搜索"""

@@ -4,16 +4,25 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Generated reports & experiment output
+# Generated reports & experiment output（pipeline 每次运行的 reports/{时间戳}/ 自动继承忽略）
 agent-scholar/scripts/reports/
 test/experiments/output/
 test/experiments/__pycache__/
+# test-report/ 分模块测试运行的生成结果（保留 run_modules.py 脚本，忽略 json/md/html 记录）
+test-report/*
+!test-report/run_modules.py
 
-# Runtime data (在 ~/.hermes/ 下，不在本仓库；防御性排除)
+# 运行期数据（生成在 agent-scholar/config/ 下，与 .env 同目录）
+# .env 是用户唯一配置，必须忽略；.env.example 是模板，必须保留
 *.env
 .env
-email_log.json
+!.env.example
+# email_sender 运行期文件
+email_sends.jsonl
+email_send_cooldown.json
+# LLM 四要素分析缓存
 llm_cache_*.json
+# 增量报告时间戳（周期功能移除后此行可删）
 academic_scholar_timestamps.json
 
 # OS / Editor

@@ -68,8 +68,6 @@ class SearchIntent:
     paper_types: List[str] = None  # journal/conference/thesis
     filters: Dict[str, bool] = None  # 筛选条件
     max_results: int = 50
-    is_scheduled: bool = False         # 是否为定时/增量模式
-    schedule: Optional[str] = None     # 规范化周期 token: daily/weekly/biweekly/monthly/every-Nd
 
     def __post_init__(self):
         if self.paper_types is None:
@@ -110,14 +108,29 @@ def get_skill_dir() -> Path:
     return Path(__file__).parent.parent
 
 
+def get_skill_data_dir() -> Path:
+    """
+    获取 skill 配置/数据目录（唯一路径：项目内 agent-scholar/config/）。
+
+    所有配置与运行期数据统一存放于此（不读取任何其它路径）：
+      - .env                              用户配置（唯一配置来源，由 .env.example 复制而来）
+      - llm_cache_four_element.json       LLM 四要素缓存（程序自动生成）
+      - email_sends.jsonl                 邮件发送日志（程序自动生成）
+      - email_send_cooldown.json          邮件冷却状态（程序自动生成）
+
+    目录可能尚不存在，由调用方按需 mkdir(parents=True)。
+    """
+    return get_skill_dir() / 'config'
+
+
 def get_config_path() -> Path:
-    """获取配置文件路径"""
-    return Path.home() / '.hermes' / 'config.yaml'
+    """获取配置文件路径（唯一路径：config/config.yaml）"""
+    return get_skill_data_dir() / 'config.yaml'
 
 
 def get_timestamp_file_path() -> Path:
-    """获取时间戳文件路径"""
-    return Path.home() / '.hermes' / 'academic_scholar_timestamps.json'
+    """获取时间戳文件路径（唯一路径：config/academic_scholar_timestamps.json）"""
+    return get_skill_data_dir() / 'academic_scholar_timestamps.json'
 
 
 def parse_date_range(text: str) -> tuple[Optional[datetime], Optional[datetime]]:
@@ -163,9 +176,14 @@ def parse_date_range(text: str) -> tuple[Optional[datetime], Optional[datetime]]
                                         + weeks * 7 + days)
 
     time_patterns = {
-        r"近?\s*(\d+)\s*周": lambda m: rel(weeks=int(m.group(1))),
-        r"近?\s*(\d+)\s*个?月": lambda m: rel(months=int(m.group(1))),
+        # 中文：年 / 月 / 周
         r"近?\s*(\d+)\s*年": lambda m: rel(years=int(m.group(1))),
+        r"近?\s*(\d+)\s*个?月": lambda m: rel(months=int(m.group(1))),
+        r"近?\s*(\d+)\s*周": lambda m: rel(weeks=int(m.group(1))),
+        # 英文缩写：y / mo / w（与 .env DEFAULT_TIME_RANGE、--time 参数一致）
+        r"近?\s*(\d+)\s*y(?:ears?)?": lambda m: rel(years=int(m.group(1))),
+        r"近?\s*(\d+)\s*mo(?:nths?)?": lambda m: rel(months=int(m.group(1))),
+        r"近?\s*(\d+)\s*w(?:eeks?)?": lambda m: rel(weeks=int(m.group(1))),
         r"不限?|all": lambda m: None,
     }
     for pattern, calc_start in time_patterns.items():
@@ -174,28 +192,6 @@ def parse_date_range(text: str) -> tuple[Optional[datetime], Optional[datetime]]
             return calc_start(match), end_date
 
     return None, None
-
-
-def schedule_interval(token: Optional[str]) -> timedelta:
-    """
-    规范化调度 token → timedelta（定时报告的周期长度）。
-    token: daily / weekly / biweekly / monthly / every-Nd；未知或 None → 默认 7 天。
-    供 IntentParser 默认窗口、pipeline 首次回退窗口、scheduler 周期共用。
-    """
-    mapping = {
-        "daily": timedelta(days=1),
-        "weekly": timedelta(days=7),
-        "biweekly": timedelta(days=14),
-        "monthly": timedelta(days=30),
-    }
-    if not token:
-        return timedelta(days=7)
-    if token in mapping:
-        return mapping[token]
-    m = re.fullmatch(r"every-(\d+)d", token)
-    if m:
-        return timedelta(days=int(m.group(1)))
-    return timedelta(days=7)
 
 
 def normalize_author_name(name: str) -> str:

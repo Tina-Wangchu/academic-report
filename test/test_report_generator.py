@@ -286,22 +286,20 @@ class TestTrends:
             [_make_paper("P1", keywords=["diffusion", "sampling"])],
             _make_intent())
         assert "未来研究趋势" in report or "Future Trends" in report
-        assert "研究缺口" in report or "Research Gaps" in report
+        assert "可深挖方向" in report or "Directions Worth Exploring" in report
         # 趋势应提到关键词
         assert "diffusion" in report
 
-    def test_gaps_derived_not_generic(self, gen):
-        """缺口应基于语料派生（例如缺可解释性），不是固定套话"""
-        # 全预印本 + 无可解释性信号 → 应触发对应缺口
-        p = _make_paper("P1", abstract="a method for sampling",
-                        keywords=["diffusion"])
-        p.venue = "arXiv"
-        p.venue_type = "preprint"
+    def test_directions_derived_not_flaws(self, gen):
+        """研究方向（深挖方向）应基于论文派生，且不再是旧的论文缺陷评价"""
+        p = _make_paper("Diffusion sampling method", abstract="a method for sampling",
+                        keywords=["diffusion", "sampling"])
         report = gen.generate_report([p], _make_intent("zh"))
-        # 至少出现一个派生缺口关键词
-        assert ("预印本" in report or "可解释" in report
-                or "基准" in report or "时间跨度" in report
-                or "高被引" in report)
+        # 新章节标签存在（深挖方向）
+        assert "可深挖方向" in report or "Directions Worth Exploring" in report
+        # 不再出现旧的缺陷评价措辞（预印本缺评审 / 缺高被引里程碑 等"论文缺陷"判断）
+        assert "缺乏经同行评审" not in report
+        assert "缺乏高被引里程碑" not in report
 
 
 # ---------------------------------------------------------------------- #

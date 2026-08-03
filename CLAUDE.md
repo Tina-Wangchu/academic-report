@@ -1,292 +1,285 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在此代码库中工作时提供指导。
 
-## Critical Workflow Rules
+## 关键工作流程规则
 
-### Rule 1: Re-Understand Project Intent Before Changes
+### 规则 1：修改前重新理解项目意图
 
-**EVERY TIME before creating or modifying files**, you MUST:
+**每次创建或修改文件之前**，你必须：
 
-1. Read `docs/agent-scholar skill实施计划.md` to re-understand the project's complete intent and requirements
-2. Align your implementation with the detailed specifications in that plan (2357 lines of detailed implementation code)
-3. Ensure your changes support the 6 core modules and 2 functional modes as specified in docs/design-init.txt
+1. 阅读 `docs/agent-scholar skill实施计划.md` 以重新理解项目的完整意图和需求
+2. 使你的实现与该计划中的详细规范保持一致（2357 行详细的实现代码）
+3. 确保你的更改支持 docs/design-init.txt 中指定的 6 个核心模块和 2 种功能模式
 
-**Why**: The implementation plan contains the authoritative specifications for all 6 modules. Reading it prevents drift from requirements and ensures consistency with the overall architecture.
+**原因**：实施计划包含所有 6 个模块的权威规范。阅读它可以防止偏离需求并确保与整体架构的一致性。
 
-### Rule 2: Synchronize Documentation After Changes
+### 规则 2：更改后同步文档
 
-**After EVERY code modification or file creation**, you MUST:
+**每次代码修改或文件创建之后**，你必须：
 
-1. Update `docs/agent-scholar skill实施计划.md`:
-   - Mark implemented modules as ✅ completed
-   - Update progress sections
-   - Add any new implementation details or code changes
-   - Ensure the plan reflects current actual state
+1. 更新 `docs/agent-scholar skill实施计划.md`：
+   - 将已实现的模块标记为 ✅ 完成
+   - 更新进度部分
+   - 添加任何新的实现细节或代码更改
+   - 确保计划反映当前实际状态
 
-2. Update `README.md`:
-   - Update module completion status in the功能特性 table
-   - Update development progress in the🛠️开发状态 section
-   - Add any new features or commands
-   - Ensure documentation matches implementation reality
+2. 更新 `README.md`：
+   - 在功能特性表中更新模块完成状态
+   - 在 🛠️ 开发状态部分更新开发进度
+   - 添加任何新功能或命令
+   - 确保文档与实现现实相符
 
-**Why**: This keeps documentation in sync with code, prevents outdated docs, and maintains a single source of truth for project status.
+**原因**：这使文档与代码保持同步，防止文档过时，并维护项目状态的单一真实来源。
 
-## Project Overview
+## 项目概述
 
-Agent Scholar is a Hermes Agent Skill that performs automated academic paper search, analysis, and report generation with email delivery. It integrates with multiple academic data sources (arXiv, Semantic Scholar, OpenAlex) to retrieve papers, intelligently filter and rank them, extract key information, and generate formatted academic reports sent via email.
+Agent Scholar 是一个**平台无关的 AI Agent 技能**（可用于 Claude、Codex 等，不依赖任何特定 Agent 运行环境），可执行自动化学术论文搜索、分析和报告生成并通过电子邮件发送。它与多个学术数据源（arXiv、Semantic Scholar、OpenAlex）集成以检索论文，智能过滤和排序，提取关键信息，并生成通过电子邮件发送的格式化学术报告。
 
-## Architecture
+## 架构
 
-### Core Data Flow
+### 核心数据流
 
 ```
-User Natural Language Input
+用户自然语言输入
     ↓
-Intent Parser (extracts: query, keywords, time range, filters, schedule)
+意图解析器（提取：查询、关键词、时间范围、过滤器、调度）
     ↓
-Paper Searcher (parallel multi-source search with rate limiting)
+论文搜索器（带限流的多源并行搜索）
     ↓
-Paper Filter (priority ranking, topic classification, deduplication)
+论文过滤器（优先级排序、主题分类、去重）
     ↓
-Paper Analyzer (extract metadata, analyze content, generate APA citations)
+论文分析器（提取元数据、分析内容、生成 APA 引用）
     ↓
-Report Generator (Markdown/HTML report generation with trends analysis)
+报告生成器（Markdown/HTML 报告生成与趋势分析）
     ↓
-Email Sender (SMTP delivery with attachments)
+邮件发送器（SMTP 附件投递）
 ```
 
-### Module Architecture
+### 模块架构
 
-The system follows a pipeline architecture with 6 core modules + 2 mode/infra modules in `agent-scholar/scripts/`:
+系统遵循管道架构，在 `agent-scholar/scripts/` 中包含 6 个核心模块 + 2 种模式/基础设施模块：
 
-**Completed Modules** ✅:
-- `utils.py` - Data models (`Paper`, `SearchIntent`) and utility functions (APA citation, date parsing, `schedule_interval`)
-- `config_manager.py` - Unified configuration management (loads `~/.hermes/config.yaml` and `~/.hermes/.env`)
-- `rate_limiter.py` - API rate limiting handler for multiple data sources (已接入 arXiv/Semantic Scholar/OpenAlex；CrossRef/PubMed 已配置限流但 Searcher 暂未接入)
-- `intent_parser.py` - Natural language parser extracting search parameters + **schedule detection** (`is_scheduled`/`schedule`)
-- `paper_search.py` - Multi-source paper searcher (arXiv, Semantic Scholar, OpenAlex; date filtering)
-- `paper_filter.py` - Intelligent filtering, ranking, hotspot clustering
-- `paper_analyzer.py` - Information extraction, four-element excerpts, APA 7th, overall analysis, foundational papers
-- `report_generator.py` - Academic report generator (Markdown + HTML, bilingual, four-element excerpts, incremental label)
-- `email_sender.py` - SMTP/SSL email sender（attachments, retry, **auto-detect proxy: direct → SOCKS fallback**, so mail sends whether proxy on/off）
-- `pipeline.py` - Full-chain orchestrator (search→report→email) + **incremental branch** (`--incremental`)
-- `timestamp_manager.py` ✅ - Persists per-topic last-run timestamps (`~/.hermes/academic_scholar_timestamps.json`) for incremental mode
-- `scheduler.py` ✅ - Standalone in-process scheduler (定时报告入口): parses周期 → loops `run_pipeline(incremental=True)`; `--once/--dry-run`; SIGINT; optional croniter
-- `llm_analyzer.py` ✅ - Four-element **LLM generative** analysis (Zhipu GLM via Anthropic-compatible endpoint; LLM→rule fallback + cache); fills the 4 per-paper elements at reference depth
+**已完成模块** ✅：
+- `utils.py` - 数据模型（`Paper`、`SearchIntent`）和工具函数（APA 引用、日期解析、`schedule_interval`）
+- `config_manager.py` - 统一配置管理（**唯一配置来源 `agent-scholar/config/.env`**，由 `.env.example` 复制；getter 优先读环境变量）
+- `rate_limiter.py` - 多数据源的 API 限流处理器（已接入 arXiv/Semantic Scholar/OpenAlex；CrossRef/PubMed 已配置限流但 Searcher 暂未接入）
+- `intent_parser.py` - 自然语言解析器，提取搜索参数 + **调度检测**（`is_scheduled`/`schedule`）
+- `paper_search.py` - 多源论文搜索器（arXiv、Semantic Scholar、OpenAlex；日期过滤）
+- `paper_filter.py` - 智能过滤、排序、热点聚类
+- `paper_analyzer.py` - 信息提取、四要素摘录、APA 第七版、整体分析、奠基性论文
+- `report_generator.py` - 学术报告生成器（Markdown + HTML、双语、四要素摘录、增量标签）
+- `email_sender.py` - SMTP/SSL 邮件发送器（附件、重试、**自动检测代理：直连 → SOCKS 回退**，无论代理开关都能发邮件）
+- `pipeline.py` - 全链路编排器（搜索→报告→邮件）+ **增量分支**（`--incremental`）
+- `timestamp_manager.py` ✅ - 持久化每个主题的上次运行时间戳（`~/.hermes/academic_scholar_timestamps.json`）用于增量模式
+- `scheduler.py` ✅ - 独立进程内调度器（定时报告入口）：解析周期 → 循环 `run_pipeline(incremental=True)`；`--once/--dry-run`；SIGINT；可选 croniter
+- `llm_analyzer.py` ✅ - 四要素 **LLM 生成式**分析（通过 Anthropic 兼容端点使用智谱 GLM；LLM→规则回退 + 缓存）；填充参考深度的 4 个单论文要素
 
-### Key Design Patterns
+### 关键设计模式
 
-**Singleton Managers**:
-- `get_config_manager()` returns global ConfigManager instance
-- `get_rate_limiter()` returns global RateLimiter instance
-- `get_timestamp_manager()` returns global TimestampManager instance
+**单例管理器**：
+- `get_config_manager()` 返回全局 ConfigManager 实例
+- `get_rate_limiter()` 返回全局 RateLimiter 实例
+- `get_timestamp_manager()` 返回全局 TimestampManager 实例
 
-**Data Model**:
-- `Paper` (dataclass) - Core paper metadata with analysis fields
-- `SearchIntent` (dataclass) - Parsed user search parameters
+**数据模型**：
+- `Paper`（dataclass）- 具有分析字段的核心论文元数据
+- `SearchIntent`（dataclass）- 解析的用户搜索参数
 
-**Configuration Layers**:
-1. Environment variables (`~/.hermes/.env`) - Secrets (SMTP credentials, API keys)
-2. Hermes config (`~/.hermes/config.yaml`) - Non-sensitive settings (language, time_range, max_results)
-3. Module-level defaults - Fallback values
+**配置层次**（唯一配置文件 `agent-scholar/config/.env`）：
+1. 真实环境变量（`os.environ`，优先级最高，便于 CI/容器临时覆盖）
+2. `.env` 文件（用户配置：密钥 + 非敏感参数，由 `.env.example` 复制而来）
+3. 代码默认值（各 getter 的 default 参数兜底）
 
-## Essential Configuration
+> 不读取 `~/.hermes/` 或任何其它路径。全部可用配置项见 `agent-scholar/config/.env.example`。
 
-### Required Setup
+## 必要配置
 
-Before any development or testing:
+### 必需设置
+
+在任何开发或测试之前（从项目根目录 `agent-scholar/` 出发）：
 
 ```bash
-# Install Hermes Agent
-pip install hermes-agent
-
-# Install dependencies
-cd agent-scholar-2.0/agent-scholar
+# 1. 安装依赖
+cd agent-scholar
 pip install -r requirements.txt
 
-# Configure environment variables (REQUIRED for email functionality)
-cat > ~/.hermes/.env << EOF
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your@gmail.com
-SMTP_PASSWORD=your-app-password
-EOF
-
-# Configure Hermes settings
-hermes config set skills.config.academic.default_language bilingual
-hermes config set skills.config.academic.max_results 50
-hermes config set skills.config.academic.email_recipient your@email.com
+# 2. 配置：复制模板并填入你自己的值（.env 是本工程唯一配置来源）
+cp config/.env.example config/.env
+# 然后编辑 config/.env，至少填写 SMTP_* 四项（邮件功能必需）：
+#   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD
 ```
 
-### Gmail App Password
+`.env` 中其余配置（LLM 分析、报告参数、代理）均为可选，详见 `agent-scholar/config/.env.example` 内的分组注释。
 
-For Gmail SMTP, generate an app password: https://myaccount.google.com/apppasswords
+### Gmail 应用密码
 
-## Development Commands
+对于 Gmail SMTP，生成应用密码：https://myaccount.google.com/apppasswords
 
-### Testing Individual Modules
+## 开发命令
+
+### 测试单个模块
 
 ```bash
-# Test configuration loading
+# 测试配置加载
 python3 agent-scholar/scripts/config_manager.py
 
-# Test intent parsing
+# 测试意图解析
 python3 agent-scholar/scripts/intent_parser.py --input "搜索最近的深度学习论文"
 
-# Test email configuration (requires SMTP setup)
+# 测试邮件配置（需要 SMTP 设置）
 python3 agent-scholar/scripts/email_sender.py --test
 ```
 
-### Test File Requirements
+### 测试文件要求
 
-**ALL test scripts MUST follow these conventions:**
+**所有测试脚本必须遵循以下约定**：
 
-1. **Naming Convention**: All test files must be prefixed with `test_`
-   - ✅ Correct: `test_paper_search.py`, `test_intent_parser.py`, `test_report_generator.py`
-   - ❌ Incorrect: `paper_search_test.py`, `test_search.py`, `tests.py`
+1. **命名约定**：所有测试文件必须以 `test_` 为前缀
+   - ✅ 正确：`test_paper_search.py`、`test_intent_parser.py`、`test_report_generator.py`
+   - ❌ 错误：`paper_search_test.py`、`test_search.py`、`tests.py`
 
-2. **File Location**: All test files must be saved in the `test/` directory
-   - ✅ Correct: `test/test_paper_search.py`, `test/test_filter.py`
-   - ❌ Incorrect: `scripts/test_paper_search.py`, `tests/test_filter.py`
+2. **文件位置**：所有测试文件必须保存在 `test/` 目录中
+   - ✅ 正确：`test/test_paper_search.py`、`test/test_filter.py`
+   - ❌ 错误：`scripts/test_paper_search.py`、`tests/test_filter.py`
 
-3. **Test Structure**: 
-   - Unit tests for a module should be named `test_<module_name>.py`
-   - Example: Tests for `paper_search.py` → `test/test_paper_search.py`
+3. **测试结构**：
+   - 模块的单元测试应命名为 `test_<module_name>.py`
+   - 示例：`paper_search.py` 的测试 → `test/test_paper_search.py`
 
-**Test Directory Structure**:
+**测试目录结构**：
 ```
 test/
 ├── __init__.py
-├── test_intent_parser.py      # Tests for scripts/intent_parser.py
-├── test_paper_search.py        # Tests for scripts/paper_search.py
-├── test_paper_filter.py        # Tests for scripts/paper_filter.py
-├── test_paper_analyzer.py      # Tests for scripts/paper_analyzer.py
-├── test_report_generator.py    # Tests for scripts/report_generator.py
-├── test_email_sender.py        # Tests for scripts/email_sender.py
-└── test_integration.py         # Integration tests
+├── test_intent_parser.py      # scripts/intent_parser.py 的测试
+├── test_paper_search.py        # scripts/paper_search.py 的测试
+├── test_paper_filter.py        # scripts/paper_filter.py 的测试
+├── test_paper_analyzer.py      # scripts/paper_analyzer.py 的测试
+├── test_report_generator.py    # scripts/report_generator.py 的测试
+├── test_email_sender.py        # scripts/email_sender.py 的测试
+└── test_integration.py         # 集成测试
 ```
 
-**Running Tests**:
+**运行测试**：
 ```bash
-# Run all tests
+# 运行所有测试
 pytest test/
 
-# Run specific test file
+# 运行特定测试文件
 pytest test/test_paper_search.py
 
-# Run specific test function
+# 运行特定测试函数
 pytest test/test_paper_search.py::test_arxiv_search
 
-# Run with verbose output
+# 以详细输出运行
 pytest test/ -v
 
-# Run with coverage
+# 运行覆盖率测试
 pytest test/ --cov=agent_scholar --cov-report=html
 ```
 
-### Hermes Agent Integration
+### Hermes Agent 集成
 
 ```bash
-# Install skill to Hermes
+# 将技能安装到 Hermes
 cp -r agent-scholar-2.0/agent-scholar ~/.hermes/skills/academic-report
 
-# Test skill loading
+# 测试技能加载
 hermes chat -q "/academic-report 帮助"
 
-# List all skills
+# 列出所有技能
 /skills
 ```
 
-### Running in Hermes
+### 在 Hermes 中运行
 
 ```bash
-# Single search mode
+# 单次搜索模式
 hermes chat -q "/academic-report 搜索最近的机器学习论文，生成报告并发送到我的邮箱"
 
-# Scheduled report (accept blueprint suggestion)
+# 定时报告（接受蓝图建议）
 hermes chat
 /suggestions accept 1
 ```
 
-## Module Implementation Priorities
+## 模块实现优先级
 
-**Phase 1 (High Priority)** - Core search and filtering:
-1. `paper_search.py` - Implement ArxivSearcher, SemanticScholarSearcher, PaperSearcher with parallel execution
-2. `paper_filter.py` - Implement priority scoring algorithm, topic classification, deduplication
+**阶段 1（高优先级）** - 核心搜索和过滤：
+1. `paper_search.py` - 实现 ArxivSearcher、SemanticScholarSearcher、PaperSearcher 及并行执行
+2. `paper_filter.py` - 实现优先级评分算法、主题分类、去重
 
-**Phase 2 (Medium Priority)** - Analysis and reporting:
-3. `paper_analyzer.py` - Information extraction, APA 7th formatting, related paper lookup
-4. `report_generator.py` - Markdown generation, HTML conversion, trend analysis, template rendering
+**阶段 2（中优先级）** - 分析和报告：
+3. `paper_analyzer.py` - 信息提取、APA 第七版格式化、相关论文查找
+4. `report_generator.py` - Markdown 生成、HTML 转换、趋势分析、模板渲染
 
-**Phase 3 (Low Priority)** - Delivery and testing:
-5. `email_sender.py` - SMTP integration with retry logic
-6. `templates/` - Create report_template.md and report_html_template.html
+**阶段 3（低优先级）** - 交付和测试：
+5. `email_sender.py` - SMTP 集成及重试逻辑
+6. `templates/` - 创建 report_template.md 和 report_html_template.html
 
-## Data Source Integration
+## 数据源集成
 
-### API Rate Limits (Handled by RateLimiter)
+### API 限流（由 RateLimiter 处理）
 
-| Source | Limit | Implementation |
+| 数据源 | 限制 | 实现 |
 |--------|-------|----------------|
-| arXiv | None | Direct `arxiv` library |
-| Semantic Scholar | 5000/day | REST API with optional API key |
-| OpenAlex | None | REST API |
-| CrossRef | 10/sec | **Reserved**（rate_limiter 已配置，Searcher 暂未接入） |
-| PubMed | 3/sec | **Reserved**（同上） |
+| arXiv | 无限制 | 直接使用 `arxiv` 库 |
+| Semantic Scholar | 5000/天 | REST API，可选 API 密钥 |
+| OpenAlex | 无限制 | REST API |
+| CrossRef | 10/秒 | **预留**（rate_limiter 已配置，Searcher 暂未接入） |
+| PubMed | 3/秒 | **预留**（同上） |
 
-### Search Strategy
+### 搜索策略
 
-When implementing `paper_search.py`:
-- Use `ThreadPoolExecutor` for parallel searches (max_workers=3)
-- Call `rate_limiter.wait_if_needed(source)` before each API call
-- Merge results with `_deduplicate()` (prioritize papers with DOI)
-- Handle exceptions gracefully, log errors, continue with other sources
+实现 `paper_search.py` 时：
+- 使用 `ThreadPoolExecutor` 进行并行搜索（max_workers=3）
+- 在每次 API 调用前调用 `rate_limiter.wait_if_needed(source)`
+- 使用 `_deduplicate()` 合并结果（优先保留有 DOI 的论文）
+- 优雅地处理异常，记录错误，继续处理其他数据源
 
-## Report Structure
+## 报告结构
 
-Generated reports follow the spec in `docs/报告格式设计.md` (bilingual CN/EN, **authoritative**). The `report_generator.py` Module 5 and `templates/report_template.md` / `report_html_template.html` must conform. Structure:
+生成的报告遵循 `docs/报告格式设计.md` 的规范（双语中/英，**权威**）。`report_generator.py` 模块 5 和 `templates/report_template.md` / `report_html_template.html` 必须符合此规范。结构：
 
-1. **Title + Time** — `{time_range} {field/topic} Report` (e.g., `2023-2025 Statistics Research Report`); a small-font line shows both the **report generation time** and the **report coverage time** (paper publication range from `intent.start_date`–`end_date`)
-2. **I. Report Overview (报告速览)** — summarize **by hotspot** (not per-paper): list which hotspots the report covers + each hotspot's specific finding (representative paper's result/conclusion); do not list every paper title
-3. **II. Classified Paper Display (分类论文展示)** — papers grouped by "hotspot" (similar/related directions). Each hotspot:
-   - Hotspot name (e.g., `热点一：XXXX`) + hotspot topic intro
-   - Per paper: title; authors, publication time, venue, citation count, DOI; **Abstract (~150-200 words, condensing the paper's central achievements)**; APA 7th citation
-   - Overall analysis (synthesize the hotspot's papers into a direction-level analysis)
-   - Foundational reference papers (1-3 most foundational/groundbreaking past works in this direction)
-4. **III. Research Trends (研究趋势)** — ~200 words; future research trends + research gaps, grounded in the included papers (avoid generic platitudes)
+1. **标题 + 时间** — `{time_range} {field/topic} 报告`（例如，`2023-2025 统计学研究报告`）；小字行显示**报告生成时间**和**报告覆盖时间**（论文发表范围从 `intent.start_date` 到 `end_date`）
+2. **一、报告速览** — **按热点**总结（非单篇）：列出报告覆盖的热点 + 每个热点的具体发现（代表性论文的结果/结论）；不要列出每篇论文标题
+3. **二、分类论文展示** — 按"热点"（相似/相关方向）分组的论文。每个热点：
+   - 热点名称（例如，`热点一：XXXX`）+ 热点主题介绍
+   - 每篇论文：标题；作者、发表时间、期刊/会议、引用计数、DOI；**摘要（~150-200 字，浓缩论文的核心成就）**；APA 第七版引用
+   - 整体分析（将热点的论文综合为方向级分析）
+   - 奠基性参考论文（该方向 1-3 篇最具奠基性/突破性的历史工作）
+4. **三、研究趋势** — 约 200 字；未来研究趋势 + 研究缺口，基于收录的论文（避免通用套话）
 
-## Common Issues
+## 常见问题
 
-### SMTP Authentication Failure
-- Gmail requires app password, not account password
-- Check `SMTP_PORT`: 587 for TLS, 465 for SSL
-- Verify `SMTP_USER` matches email address
+### SMTP 认证失败
+- Gmail 需要应用密码，而非账户密码
+- 检查 `SMTP_PORT`：TLS 用 587，SSL 用 465
+- 验证 `SMTP_USER` 与电子邮件地址匹配
 
-### API Rate Limiting
-- Semantic Scholar: Monitor remaining requests with `rate_limiter.get_remaining_requests('semantic_scholar')`
-- Automatic waiting implemented in `rate_limiter.wait_if_needed()`
-- For development, consider caching results to avoid repeated API calls
+### API 限流
+- Semantic Scholar：使用 `rate_limiter.get_remaining_requests('semantic_scholar')` 监控剩余请求数
+- 在 `rate_limiter.wait_if_needed()` 中实现自动等待
+- 开发时考虑缓存结果以避免重复 API 调用
 
-### Module Dependencies
-All scripts import from `utils.py`, ensure it's implemented first:
+### 模块依赖
+所有脚本都从 `utils.py` 导入，确保首先实现它：
 - `from utils import Paper, SearchIntent, parse_date_range, format_apa_citation`
 - `from config_manager import get_config_manager`
 - `from rate_limiter import get_rate_limiter`
 
-## File Context
+## 文件上下文
 
-- **SKILL.md** - Hermes Agent skill definition with frontmatter (metadata, environment variables, blueprint schedule)
-- **docs/design-init.txt** - Original Chinese requirements document (6 core modules, 2 modes)
-- **docs/agent-scholar skill实施计划.md** - Detailed implementation plan (2000+ lines with complete code for all 6 modules)
-- **docs/报告格式设计.md** - Authoritative bilingual (CN/EN) report format spec; Module 5 and report templates must conform
-- **requirements.txt** - Python dependencies (arxiv, scholarly, pandas, markdown, jinja2, secure-smtplib, python-dateutil, pyyaml)
+- **SKILL.md** - 技能定义与使用说明（平台无关；将在 Phase 3 进一步精简，去除历史修改残留）
+- **docs/design-init.txt** - 原始中文需求文档（6 个核心模块，2 种模式）
+- **docs/agent-scholar skill实施计划.md** - 详细实施计划（2000+ 行，包含所有 6 个模块的完整代码）
+- **docs/报告格式设计.md** - 权威双语（中/英）报告格式规范；模块 5 和报告模板必须符合
+- **requirements.txt** - Python 依赖（arxiv、scholarly、pandas、markdown、jinja2、secure-smtplib、python-dateutil、pyyaml）
 
-## Implementation Notes
+## 实现说明
 
-### When implementing `paper_search.py`:
+### 实现 `paper_search.py` 时：
 
-Follow the pattern from the implementation plan in `docs/agent-scholar skill实施计划.md` (lines 518+):
+遵循 `docs/agent-scholar skill实施计划.md` 实施计划中的模式（第 518+ 行）：
 
 ```python
 class PaperSearcher:
@@ -296,22 +289,22 @@ class PaperSearcher:
         self.searchers = {
             'arxiv': ArxivSearcher(),
             'semantic_scholar': SemanticScholarSearcher(api_keys['semantic_scholar']),
-            # Add other sources...
+            # 添加其他数据源...
         }
     
     def search(self, intent: SearchIntent) -> List[Paper]:
-        # Parallel search with ThreadPoolExecutor
-        # Deduplicate results
-        # Return merged list
+        # 使用 ThreadPoolExecutor 并行搜索
+        # 去重结果
+        # 返回合并列表
 ```
 
-### When implementing `paper_filter.py`:
+### 实现 `paper_filter.py` 时：
 
-Priority scoring algorithm (from plan, lines 953+):
-- Highly cited (≥100 citations): +100 points
-- Top journals (Nature/Science/Cell): +90 points
-- Top conferences (NeurIPS/ICML/ICCV): +80 points
-- SCI/EI indexed: +70 points
-- General journals: +50 points
-- Preprints: +30 points
-- Citation count bonus: +min(citation_count, 50)
+优先级评分算法（来自计划，第 953+ 行）：
+- 高被引（≥100 次引用）：+100 分
+- 顶级期刊（Nature/Science/Cell）：+90 分
+- 顶级会议（NeurIPS/ICML/ICCV）：+80 分
+- SCI/EI 索引：+70 分
+- 普通期刊：+50 分
+- 预印本：+30 分
+- 引用计数加分：+min(citation_count, 50)

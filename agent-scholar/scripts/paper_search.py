@@ -4,9 +4,10 @@
 预留（暂未实现）：CrossRef、PubMed——rate_limiter 已留限流配置，待后续接入。
 """
 
-import arxiv
 import requests
 import logging
+import time
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -16,6 +17,10 @@ from rate_limiter import get_rate_limiter
 from config_manager import get_config_manager
 
 logger = logging.getLogger(__name__)
+
+# arXiv Atom feed 命名空间
+_ATOM_NS = "{http://www.w3.org/2005/Atom}"
+_ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
 
 def _arxiv_pdf_url(entry_id: str) -> str:
@@ -39,67 +44,81 @@ def _parse_date(s) -> Optional[object]:
 
 
 class ArxivSearcher:
-    """arXiv 论文搜索器"""
+    """arXiv 论文搜索器（直接用 requests 查询 https API，不依赖 arxiv 库）。
+
+    旧版用 arxiv==1.4.8 库，该版本在 Py3.13 下不跟随 http→https 重定向（HTTP 301）
+    导致请求失败。改为直接 requests.get(https) + xml.etree 解析 Atom feed，与
+    S2/OpenAlex 的 requests 风格一致。
+    """
+
+    BASE_URL = "https://export.arxiv.org/api/query"
 
     def __init__(self):
-        self.client = arxiv.Client(
-            page_size=100,
-            delay_seconds=3.0,
-            num_retries=3
-        )
+        self.rate_limiter = get_rate_limiter()
+        self.timeout = 30
+        self.max_retries = 3
+        self.last_error = None   # 供 PaperSearcher 聚合（错误可观测）
 
     def search(self, query: str, max_results: int = 50,
                start_date: Optional[datetime] = None,
                end_date: Optional[datetime] = None) -> List[Paper]:
-        """
-        搜索 arXiv 论文
-
-        Args:
-            query: 搜索查询
-            max_results: 最大结果数
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            论文列表
-        """
+        """搜索 arXiv 论文（requests 直查 https + Atom 解析，带重试）。"""
         logger.info(f"搜索 arXiv: {query}")
+        self.last_error = None
 
-        # 构建查询
         search_query = self._build_query(query, start_date, end_date)
+        params = {
+            "search_query": search_query,
+            "start": 0,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
+        headers = {"User-Agent": "agent-scholar/2.0 (mailto:agent-scholar@example.com)"}
 
-        # 执行搜索
-        search = arxiv.Search(
-            query=search_query,
-            max_results=max_results,
-            sort_by=arxiv.SortCriterion.SubmittedDate,
-            sort_order=arxiv.SortOrder.Descending
-        )
+        papers: List[Paper] = []
+        last_err = None
+        for attempt in range(1, self.max_retries + 1):
+            self.rate_limiter.wait_if_needed("arxiv")
+            try:
+                resp = requests.get(self.BASE_URL, params=params,
+                                    headers=headers, timeout=self.timeout)
+                resp.raise_for_status()
+                papers = self._parse_feed(resp.content)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                logger.warning(f"arXiv 查询失败 (attempt {attempt}/{self.max_retries}): {e}")
+                time.sleep(3)   # arXiv 建议请求间隔 ≥3s
 
-        papers = []
-        try:
-            for result in self.client.results(search):
-                paper = self._convert_to_paper(result)
-                papers.append(paper)
-                logger.debug(f"找到论文: {paper.title}")
-
-        except Exception as e:
-            logger.error(f"arXiv 搜索失败: {e}")
+        if not papers and last_err is not None:
+            self.last_error = f"{type(last_err).__name__}: {last_err}"
+            logger.error(f"arXiv 搜索失败（{self.max_retries} 次后）: {last_err}")
 
         logger.info(f"arXiv 找到 {len(papers)} 篇论文")
+        return papers
+
+    def _parse_feed(self, content: bytes) -> List[Paper]:
+        """解析 arXiv Atom feed → List[Paper]。"""
+        root = ET.fromstring(content)
+        papers = []
+        for entry in root.findall(f"{_ATOM_NS}entry"):
+            try:
+                paper = self._convert_to_paper(entry)
+                if paper and paper.title:
+                    papers.append(paper)
+            except Exception as e:
+                logger.debug(f"arXiv 条目解析失败: {e}")
         return papers
 
     def _build_query(self, query: str, start_date: Optional[datetime],
                     end_date: Optional[datetime]) -> str:
         """构建 arXiv 查询语句"""
-        # 基础查询
         search_query = f'all:"{query}"'
-
-        # 添加时间过滤
         if start_date or end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             search_query += f" AND {date_filter}"
-
         return search_query
 
     def _build_date_filter(self, start_date: Optional[datetime],
@@ -111,30 +130,63 @@ class ArxivSearcher:
         end = end_date.strftime("%Y%m%d2359") if end_date else "*"
         return f"submittedDate:[{start} TO {end}]"
 
-    def _convert_to_paper(self, result: arxiv.Result) -> Paper:
-        """将 arXiv 结果转换为 Paper 对象"""
-        # 提取作者
-        authors = [author.name for author in result.authors]
+    def _convert_to_paper(self, entry: ET.Element) -> Paper:
+        """将 Atom <entry> 节点转换为 Paper 对象"""
+        def _text(tag: str) -> str:
+            el = entry.find(f"{_ATOM_NS}{tag}")
+            return el.text.strip() if el is not None and el.text else ""
 
-        # 提取年份 + 精确发表日
-        published = result.published
-        year = published.year if published else datetime.now().year
+        title = _text("title").replace("\n", " ")
+        summary = _text("summary").replace("\n", " ")
+
+        authors: List[str] = []
+        for a in entry.findall(f"{_ATOM_NS}author"):
+            n = a.find(f"{_ATOM_NS}name")
+            if n is not None and n.text:
+                authors.append(n.text.strip())
+
+        entry_id = _text("id")
+
+        # 发表日期 <published>（形如 2023-01-15T...）
+        published = None
+        year = datetime.now().year
+        pub_str = _text("published")
+        if pub_str:
+            for sl, fmt in ((19, "%Y-%m-%dT%H:%M:%S"), (10, "%Y-%m-%d")):
+                try:
+                    published = datetime.strptime(pub_str[:sl], fmt)
+                    year = published.year
+                    break
+                except ValueError:
+                    continue
+
+        # DOI（arxiv 扩展字段，可能缺失）
+        doi_el = entry.find(f"{_ARXIV_NS}doi")
+        doi = doi_el.text.strip() if doi_el is not None and doi_el.text else ""
+
+        # PDF 链接：优先 entry_id 推导，回退 <link type=application/pdf>
+        pdf = _arxiv_pdf_url(entry_id)
+        if not pdf:
+            for link in entry.findall(f"{_ATOM_NS}link"):
+                if link.get("type") == "application/pdf" and link.get("href"):
+                    pdf = link.get("href", "")
+                    break
 
         return Paper(
-            title=result.title,
+            title=title,
             authors=authors,
             venue="arXiv",
             year=year,
-            doi=result.doi or "",
+            doi=doi,
             published_date=published.date() if published else None,
-            abstract=result.summary.replace('\n', ' '),
+            abstract=summary,
             keywords=[],
-            citation_count=0,  # arXiv 通常没有引用量
+            citation_count=0,   # arXiv 不提供引用量
             venue_type="preprint",
             ranking="预印本",
-            url=result.entry_id,
+            url=entry_id,
             source="arxiv",
-            pdf_url=_arxiv_pdf_url(result.entry_id),
+            pdf_url=pdf,
         )
 
 
@@ -149,16 +201,19 @@ class SemanticScholarSearcher:
         if api_key:
             self.headers['x-api-key'] = api_key
         self.rate_limiter = get_rate_limiter()
+        self.last_error = None   # 供 PaperSearcher 聚合（错误可观测）
 
     def search(self, query: str, max_results: int = 50,
                start_date: Optional[datetime] = None,
                end_date: Optional[datetime] = None) -> List[Paper]:
-        """搜索 Semantic Scholar 论文"""
+        """搜索 Semantic Scholar 论文（429 限流时按 retry-after 退避重试）。"""
         logger.info(f"搜索 Semantic Scholar: {query}")
+        self.last_error = None
 
         # 等待限流
         if not self.rate_limiter.wait_if_needed('semantic_scholar'):
             logger.warning("Semantic Scholar 达到限流，跳过")
+            self.last_error = "rate_limiter: 达到日配额上限"
             return []
 
         # 构建查询参数
@@ -175,13 +230,22 @@ class SemanticScholarSearcher:
             if year_filter:
                 params['year'] = year_filter
 
+        url = f"{self.BASE_URL}/paper/search"
         try:
-            response = requests.get(
-                f"{self.BASE_URL}/paper/search",
-                headers=self.headers,
-                params=params,
-                timeout=30
-            )
+            # 无 key 时 S2 易 429：读 retry-after 头退避重试
+            response = None
+            for attempt in range(1, 4):
+                if attempt > 1:
+                    self.rate_limiter.wait_if_needed('semantic_scholar')
+                response = requests.get(url, headers=self.headers,
+                                        params=params, timeout=30)
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get('retry-after', 5) or 5)
+                    logger.warning(f"S2 429 限流，{retry_after}s 后重试 ({attempt}/3)")
+                    self.last_error = f"429 Too Many Requests (attempt {attempt}/3, 无 key 易限流)"
+                    time.sleep(min(retry_after, 30))
+                    continue
+                break
             response.raise_for_status()
 
             data = response.json()
@@ -191,18 +255,20 @@ class SemanticScholarSearcher:
             return papers
 
         except Exception as e:
+            self.last_error = f"{type(e).__name__}: {e}"
             logger.error(f"Semantic Scholar 搜索失败: {e}")
             return []
 
     def _build_year_filter(self, start_date: Optional[datetime],
                           end_date: Optional[datetime]) -> str:
-        """构建年份过滤器"""
-        years = []
+        """构建年份过滤器（S2 year 参数：闭区间 / 开右 / 开左）"""
+        if start_date and end_date:
+            return f"{start_date.year}-{end_date.year}"
         if start_date:
-            years.append(f"{start_date.year}-")
+            return f"{start_date.year}-"
         if end_date:
-            years.append(f"-{end_date.year}")
-        return ','.join(years) if years else ""
+            return f"-{end_date.year}"
+        return ""
 
     def _convert_to_paper(self, item: Dict) -> Paper:
         """将 Semantic Scholar 结果转换为 Paper 对象"""
@@ -274,12 +340,14 @@ class OpenAlexSearcher:
 
     def __init__(self):
         self.rate_limiter = get_rate_limiter()
+        self.last_error = None
 
     def search(self, query: str, max_results: int = 50,
                start_date: Optional[datetime] = None,
                end_date: Optional[datetime] = None) -> List[Paper]:
         """搜索 OpenAlex 论文"""
         logger.info(f"搜索 OpenAlex: {query}")
+        self.last_error = None
 
         # OpenAlex 没有限流，但为了礼貌添加延迟
         if not self.rate_limiter.wait_if_needed('openalex'):
@@ -307,6 +375,7 @@ class OpenAlexSearcher:
             return papers
 
         except Exception as e:
+            self.last_error = f"{type(e).__name__}: {e}"
             logger.error(f"OpenAlex 搜索失败: {e}")
             return []
 
@@ -474,6 +543,7 @@ class PaperSearcher:
         max_results = intent.max_results or self.config.get_max_results()
 
         # 并行搜索所有数据源
+        self.search_errors: Dict[str, str] = {}   # 各源失败原因（即使日志被关也可观测）
         all_papers = []
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
@@ -489,12 +559,18 @@ class PaperSearcher:
 
             for future in as_completed(futures):
                 source = futures[future]
+                searcher = self.searchers[source]
                 try:
                     papers = future.result()
                     all_papers.extend(papers)
                     logger.info(f"{source} 搜索完成: {len(papers)} 篇")
                 except Exception as e:
+                    self.search_errors[source] = f"{type(e).__name__}: {e}"
                     logger.error(f"{source} 搜索失败: {e}")
+                # 捕获 searcher 内部吞掉的错误（即使返回 [] 也能看到原因）
+                le = getattr(searcher, "last_error", None)
+                if le:
+                    self.search_errors[source] = le
 
         logger.info(f"总共找到 {len(all_papers)} 篇论文（合并前）")
 

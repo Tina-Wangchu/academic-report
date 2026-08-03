@@ -11,7 +11,7 @@
 设计要点：
 - 智谱 GLM 走 `ANTHROPIC_BASE_URL`(https://open.bigmodel.cn/api/anthropic) 的 Messages API，
   复用 `ANTHROPIC_AUTH_TOKEN`（即本环境已有的 GLM 凭证），零额外 key、零新依赖（用 requests）。
-- temperature=0 + 按 DOI/title 缓存（~/.hermes/llm_cache_four_element.json），稳定可复现、控成本。
+- temperature=0 + 按 DOI/title 缓存（数据目录/llm_cache_four_element.json），稳定可复现、控成本。
 - 不改报告 schema（仍填 paper.problem/existing_approaches/new_approach/results_limitations）。
 """
 
@@ -24,11 +24,11 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from utils import Paper, safe_filename
+from utils import Paper, safe_filename, get_skill_data_dir
 from config_manager import get_config_manager
 
 logger = logging.getLogger(__name__)
@@ -366,7 +366,8 @@ def _fetch_fulltext(paper: Paper, max_chars: int = 4000,
 # ---------------------------------------------------------------------- #
 
 def _default_cache_path() -> Path:
-    return Path.home() / ".hermes" / "llm_cache_four_element.json"
+    """LLM 四要素分析缓存路径（平台无关，多路径回退数据目录）。"""
+    return get_skill_data_dir() / "llm_cache_four_element.json"
 
 
 # ---------------------------------------------------------------------- #
@@ -591,6 +592,130 @@ def _label_parse(raw: str) -> Optional[Dict[str, str]]:
         body_end = positions[i + 1][0] if i + 1 < len(positions) else len(raw)
         out[field] = raw[end:body_end].strip()
     return out or None
+
+
+# ---------------------------------------------------------------------- #
+# 研究方向生成（报告「研究缺口」→「深挖方向」）
+# 给读者的 1-2 个可推进方向，非论文缺陷评价。
+# 分层：LLM 生成式（主）→ 规则（回退）。
+# ---------------------------------------------------------------------- #
+
+def _directions_prompt(language: str = "bilingual") -> str:
+    """构造「研究方向」system prompt——给读者的深挖方向，非论文缺陷评价。"""
+    lang = (language or "bilingual").strip().lower()
+    if lang not in ("zh", "en", "bilingual"):
+        lang = "bilingual"
+    base = (
+        "你是学术综述分析师 / You are an academic survey analyst. "
+        "基于给定的一批论文（标题/摘要/关键词），为读者提炼 1-2 个**值得继续深挖的研究方向**。/"
+        "Based on the given papers (titles/abstracts/keywords), propose 1-2 **research directions worth deeper investigation** for the reader.\n\n"
+        "重要：不是评判论文的缺陷，而是基于这些论文已探索的内容，指出可推进的具体方向。/"
+        "Important: NOT critiquing the papers' flaws — based on what these papers explored, point out concrete directions to advance.\n"
+        "例如：未充分探索的交叉融合、方法组合、跨领域迁移、可扩展性/效率瓶颈、理论与实证的缺口。/"
+        "e.g. under-explored cross-fusion, method combinations, cross-domain transfer, scalability/efficiency bottlenecks, theory-vs-practice gaps.\n\n"
+        "硬约束 / Hard constraints:\n"
+        "- 仅基于给定论文，不得编造未提及的工作；方向须具体可落地，避免空泛套话。/ "
+        "Use only the given papers; never fabricate. Directions must be concrete and actionable, not platitudes.\n"
+        "- 恰好 1-2 条 / exactly 1-2 items.\n"
+    )
+    if lang == "zh":
+        base += '- 输出严格 JSON（且只输出 JSON）：{"directions":[{"zh":"中文方向"},{"zh":"..."}]}\n'
+    elif lang == "en":
+        base += '- Output strictly JSON (and only JSON): {"directions":[{"en":"English direction"},{"en":"..."}]}\n'
+    else:
+        base += ('- 输出严格 JSON（且只输出 JSON）：'
+                 '{"directions":[{"zh":"中文方向","en":"English direction"},{"zh":"...","en":"..."}]}，'
+                 '每条中英内容对应一致。/ Output strictly JSON (and only JSON) with both zh and en per item.\n')
+    return base
+
+
+def _rule_directions(papers, language: str = "bilingual") -> List[Tuple[str, str]]:
+    """规则回退：基于关键词频次推断 1-2 个深挖方向（LLM 不可用时用）。"""
+    from collections import Counter
+    kw: Counter = Counter()
+    for p in papers:
+        kw.update(p.keywords or [])
+    top = [k for k, _ in kw.most_common(3)]
+    dirs: List[Tuple[str, str]] = []
+    if len(top) >= 2:
+        dirs.append((
+            f"「{top[0]}」与「{top[1]}」的交叉融合——本批论文分别涉及，但鲜有工作系统结合二者，值得深入",
+            f"Cross-fusion of '{top[0]}' and '{top[1]}' — these papers touch each separately but few systematically combine them; worth deeper investigation",
+        ))
+    dirs.append((
+        "将上述方法向实际部署与跨领域迁移验证（当前论文多为方法或基准实验，落地与迁移性证据有限）",
+        "Migrating these methods toward real deployment and cross-domain settings (current papers are mostly method/benchmark work; deployment & transfer evidence is limited)",
+    ))
+    return dirs[:2]
+
+
+def _parse_directions(raw: str, language: str) -> List[Tuple[str, str]]:
+    """容错解析 LLM 输出为 List[Tuple[zh, en]]。"""
+    raw = (raw or "").strip()
+    raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.IGNORECASE | re.MULTILINE).strip()
+    obj: Optional[Any] = None
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        m = re.search(r"\{[\s\S]*\}", raw)
+        if m:
+            try:
+                obj = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                obj = None
+    dirs: List[Tuple[str, str]] = []
+    if isinstance(obj, dict):
+        items = obj.get("directions") or obj.get("items") or []
+        if isinstance(items, dict):
+            items = [items]
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            zh = (it.get("zh") or it.get("zh_cn") or "").strip()
+            en = (it.get("en") or it.get("en_us") or "").strip()
+            if language == "zh":
+                zh = zh or en
+                if zh:
+                    dirs.append((zh, zh))
+            elif language == "en":
+                en = en or zh
+                if en:
+                    dirs.append((en, en))
+            else:
+                if zh or en:
+                    dirs.append((zh or en, en or zh))
+    return dirs[:2] if dirs else []
+
+
+def generate_research_directions(papers: List[Paper],
+                                 language: str = "bilingual") -> List[Tuple[str, str]]:
+    """
+    基于一批论文，为读者提炼 1-2 个可继续深挖的研究方向（**非论文缺陷评价**）。
+
+    分层：LLM 生成式（主，复用智谱 GLM provider）→ 规则（回退，绝不崩溃）。
+    返回 List[Tuple[zh, en]]（1-2 条双语方向）。
+    """
+    if not papers:
+        return [("本批暂无论文，无法推断深挖方向。",
+                 "No papers available to infer digging directions.")]
+    provider = _build_provider_from_config()
+    if provider is not None:
+        try:
+            sample = papers[:12]   # 控制 token：标题+关键词，≤ 12 篇
+            lines = []
+            for i, p in enumerate(sample, 1):
+                kws = ", ".join(p.keywords[:5]) if p.keywords else ""
+                lines.append(f"{i}. {p.title}" + (f" (关键词: {kws})" if kws else ""))
+            user_text = (f"论文清单（共 {len(papers)} 篇，展示前 {len(sample)} 篇）：\n"
+                         + "\n".join(lines))
+            raw = provider.summarize(_directions_prompt(language), user_text)
+            parsed = _parse_directions(raw, language)
+            if parsed:
+                return parsed
+            logger.info("研究方向 LLM 输出解析失败，回退规则")
+        except Exception as e:
+            logger.warning("研究方向 LLM 生成失败，回退规则: %s", e)
+    return _rule_directions(papers, language)
 
 
 # ---------------------------------------------------------------------- #

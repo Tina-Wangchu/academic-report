@@ -1,9 +1,9 @@
-# Agent Scholar for Hermes Agent
+# Agent Scholar
 
 > Intelligent academic paper search, analysis, report generation, and email delivery system
 > 智能化学术论文搜索、分析、报告生成与邮件发送系统
 
-[![Hermes Agent](https://img.shields.io/badge/Hermes-Agent-Skill-blue)](https://hermes-agent.nousresearch.com/)
+[![Platform](https://img.shields.io/badge/Platform-Agnostic-blueviolet)](#)
 [![Python](https://img.shields.io/badge/Python-3.8+-green)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
@@ -17,9 +17,9 @@
 
 ## 📖 Overview / 简介
 
-**Agent Scholar** is a fully-featured Hermes Agent Skill that automatically executes academic paper retrieval, intelligent filtering, in-depth analysis, academic report generation, and email delivery through natural language triggers.
+**Agent Scholar** is a fully-featured, **platform-agnostic AI Agent skill** (works with Claude, Codex, and any agent runtime — no Hermes dependency) that automatically executes academic paper retrieval, intelligent filtering, in-depth analysis, academic report generation, and email delivery through natural language triggers.
 
-**Agent Scholar** 是一个功能完整的 Hermes Agent Skill，能够通过自然语言触发，自动执行学术论文检索、智能筛选排序、深度分析、生成学术报告并通过邮件发送。
+**Agent Scholar** 是一个功能完整的**平台无关 AI Agent 技能**（可用于 Claude、Codex 等任意 Agent 运行环境，不依赖 Hermes），能够通过自然语言触发，自动执行学术论文检索、智能筛选排序、深度分析、生成学术报告并通过邮件发送。
 
 ### Key Features / 核心功能
 
@@ -28,7 +28,6 @@
 - 📊 **Deep Analysis / 深度分析**: Extracts core information, innovations, and conclusions; generates APA 7th citation format
 - 📄 **Report Generation / 报告生成**: Generates Markdown and HTML format academic reports
 - 📧 **Email Delivery / 邮件发送**: Automatically sends reports via SMTP
-- ⏰ **Scheduled Reports / 定时报告**: Supports periodic incremental reports (weekly/monthly)
 
 ---
 
@@ -59,54 +58,70 @@
 
 ---
 
+## 📦 仓库结构 / Repository Structure（部署前先看 / Read this first）
+
+本仓库是**开发工作区**——包含 skill 本体 + 设计文档 + 测试。**实际部署只需要内层的 `agent-scholar/` 目录**；仓库里其它文件都是开发过程产物，skill 运行完全不需要。
+
+This repo is a **development workspace** (skill + design docs + tests). **To deploy, you only need the inner `agent-scholar/` directory** — everything else is dev-only.
+
+```
+agent-scholar/                 ← 仓库根 / repo root（开发工作区 / dev workspace）
+├── agent-scholar/             ← ★ skill 本体（部署单元 / deployable unit = 拷这个）
+│   ├── SKILL.md              #   技能定义（Agent 据此识别技能）
+│   ├── scripts/              #   运行脚本：pipeline.py 等
+│   ├── config/               #   配置：.env（由 .env.example 复制）
+│   └── templates/            #   报告模板
+│
+├── docs/   details/          ← 开发文档（设计/实施计划/实现细节）— 运行不需要
+├── test/   test-report/      ← 测试与运行记录 — 运行不需要
+└── README.md / CLAUDE.md     ← 开发说明 — 运行不需要
+```
+
+**使用方式 / Usage**：把内层 `agent-scholar/` 整个目录拷到你 AI Agent 的 skill 目录即可。Copy the inner `agent-scholar/` into your agent's skill directory:
+
+```bash
+# 例：拷到 Claude Code 的 skill 目录（不同 Agent 路径不同，按你的 Agent 规范来）
+cp -r agent-scholar/agent-scholar ~/.claude/skills/academic-report
+```
+
+> 💡 部署的目标目录必须保留 `SKILL.md` + `scripts/` + `config/` + `templates/` 四项。`docs/`、`details/`、`test/` 等留在仓库即可，skill 运行不读它们。
+> The deployed dir only needs `SKILL.md` + `scripts/` + `config/` + `templates/`. Leave `docs/`, `details/`, `test/` in the repo — the skill never reads them at runtime.
+
+---
+
 ## 🚀 Quick Start / 快速开始
 
 ### Requirements / 环境要求
 
 - **Python**: 3.8 or higher / 3.8 或更高版本
-- **Hermes Agent**: Latest version / 最新版本
 - **OS**: Linux, macOS, or Windows / Linux、macOS 或 Windows
+- **An AI Agent runtime** (Claude Code, Codex, etc.) — optional; the pipeline also runs directly via `python pipeline.py` / 可选任意 AI Agent 运行环境（Claude Code、Codex 等）；也可直接 `python pipeline.py` 运行
 
 ### Installation Steps / 安装步骤
 
-#### 1. Install Hermes Agent / 安装 Hermes Agent
-
-```bash
-pip install hermes-agent
-```
-
-#### 2. Install This Skill / 安装本技能
+#### 1. Install This Skill / 安装本技能
 
 ```bash
 # Clone project / 克隆项目
-git clone https://github.com/your-username/agent-scholar-2.0.git
-cd agent-scholar-2.0
+git clone https://github.com/your-username/agent-scholar.git
+cd agent-scholar
 
 # Install dependencies / 安装依赖
 pip install -r agent-scholar/requirements.txt
-
-# Install skill to Hermes / 安装技能到 Hermes
-cp -r agent-scholar ~/.hermes/skills/academic-report
 ```
 
-#### 3. Configure Environment Variables / 配置环境变量
+#### 2. Configure / 配置（唯一配置来源）
 
 ```bash
-# Copy environment template / 复制环境变量模板
-cp agent-scholar/config/env.example ~/.hermes/.env
+# Copy the env template and fill in your values / 复制配置模板并填入你的值
+cp agent-scholar/config/.env.example agent-scholar/config/.env
 
-# Edit ~/.hermes/.env, add required config / 编辑 ~/.hermes/.env，添加必需配置
-# Required: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+# Edit agent-scholar/config/.env — required for email / 编辑 .env，邮件功能必需：
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 # 必需：SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 ```
 
-#### 4. Configure Hermes / 配置 Hermes
-
-```bash
-hermes config set skills.config.academic.default_language bilingual
-hermes config set skills.config.academic.max_results 50
-hermes config set skills.config.academic.email_recipient your@email.com
-```
+> `.env` 是本工程**唯一**的配置来源（含密钥与非敏感参数），不被 git 跟踪。其余可选项（LLM 分析、报告参数、代理）见 `.env.example` 内注释。 / `.env` is the **single** source of config (secrets + non-secret params), gitignored. Other optional items (LLM, report params, proxy) are documented inside `.env.example`.
 
 ---
 
@@ -118,7 +133,7 @@ hermes config set skills.config.academic.email_recipient your@email.com
 
 For sending academic report emails / 用于发送学术报告邮件。
 
-**配置位置 / Where to configure**: `~/.hermes/.env`（推荐只在这里配，避免与环境变量冲突 / recommended: configure here only, avoid env-var conflict）
+**配置位置 / Where to configure**: `agent-scholar/config/.env`（本工程唯一配置来源 / the single source of config for this project）
 
 ```bash
 # QQ 邮箱（推荐，国内直连可用）/ QQ Mail (recommended, direct in China)
@@ -152,7 +167,7 @@ SMTP_PASSWORD=xxxxxxxxxxxxxxxx      # QQ「授权码」16 位，不是登录密�
 **配置优先级（重要！改了不生效多半是这里）/ Config precedence (important — changes not taking effect? check this)**:
 
 ```
-系统环境变量 (OS env, e.g. Windows 用户变量)  >  ~/.hermes/.env  >  代码默认值
+系统环境变量 (OS env, e.g. Windows 用户变量)  >  config/.env  >  代码默认值
 ```
 
 若你在 **Windows 用户环境变量**里设过 `SMTP_*`，它会**覆盖** `.env`！改了 `.env` 却没效果，多半是系统环境变量在抢先生效。清掉它： / If you've set `SMTP_*` in your **OS user environment** (e.g. Windows User vars), it **overrides** `.env`. If `.env` edits don't take effect, a stale OS env var is winning — clear it:
@@ -164,36 +179,32 @@ unset SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD        # 当前 shell / curren
 #   Control Panel → User env vars → delete SMTP_*  (or `setx SMTP_PASSWORD ""` then reopen terminal)
 ```
 
-> 💡 **建议只在一个地方配置**（推荐 `~/.hermes/.env`），避免「环境变量 vs .env」双源漂移导致排查困惑。 / Configure in **ONE place** (recommend `~/.hermes/.env`) to avoid two-source drift.
+> 💡 **配置只在一个地方**：`agent-scholar/config/.env`（本工程唯一配置来源），避免「环境变量 vs .env」双源漂移导致排查困惑。 / Configure in **ONE place**: `agent-scholar/config/.env` (the single config source) to avoid two-source drift.
 
-**收件人 / Recipient**: 配在 `~/.hermes/config.yaml`（非敏感）/ in `~/.hermes/config.yaml` (non-secret):
+**收件人 / Recipient**: 在 `.env` 中设置 `EMAIL_RECIPIENT`（留空则回退到 `SMTP_USER`，即发给自己）/ Set `EMAIL_RECIPIENT` in `.env` (empty → falls back to `SMTP_USER`, i.e. send to yourself):
 
-```yaml
-skills:
-  config:
-    academic:
-      email_recipient: "your@email.com"
+```bash
+# agent-scholar/config/.env
+EMAIL_RECIPIENT=your@email.com
 ```
 
-> `config_manager` 启动时**自动加载** `~/.hermes/.env`（仅在对应环境变量未设置时填充），无需手动 `export`；每次运行重新读取，改完即生效。 / `config_manager` **auto-loads** `~/.hermes/.env` on startup (only fills env vars that aren't already set) — no manual `export`; re-read every run, so changes take effect immediately.
+> `config_manager` 启动时**自动加载** `config/.env`（仅在对应环境变量未设置时填充），无需手动 `export`；每次运行重新读取，改完即生效。 / `config_manager` **auto-loads** `config/.env` on startup (only fills env vars that aren't already set) — no manual `export`; re-read every run, so changes take effect immediately.
 
 **Gmail 应用专用密码 / Gmail app password**: https://myaccount.google.com/apppasswords → 生成 16 位 → 填入 `SMTP_PASSWORD`。 / Generate a 16-char app password → put in `SMTP_PASSWORD`.
 
-#### Hermes Configuration / Hermes 配置
+#### Report Defaults / 报告默认参数
 
-```yaml
-# ~/.hermes/config.yaml
-skills:
-  config:
-    academic:
-      default_language: bilingual      # en/zh/bilingual
-      default_time_range: 3y           # 1y/3y/all
-      max_results: 50                  # Max results per data source / 每个数据源最大结果数
-      email_recipient: user@example.com
-      include_preprints: true
-      filter_highly_cited: false
-      highly_cited_threshold: 100
-      sci_ei_only: false
+All non-secret report defaults live in `.env` too (all optional, with sensible defaults) / 所有非敏感默认参数也写在 `.env`（均可选，有默认值）：
+
+```bash
+# agent-scholar/config/.env
+DEFAULT_LANGUAGE=bilingual        # en / zh / bilingual
+DEFAULT_TIME_RANGE=3y             # 1y / 3y / all
+MAX_RESULTS=50                    # 每个数据源最大结果数 / max results per source
+INCLUDE_PREPRINTS=true
+FILTER_HIGHLY_CITED=false
+HIGHLY_CITED_THRESHOLD=100
+SCI_EI_ONLY=false
 ```
 
 ### Optional Configuration / 可选配置
@@ -203,9 +214,9 @@ skills:
 To increase API rate limits / 提升 API 限流限制。
 
 ```bash
-# ~/.hermes/.env
-ARXIV_API_KEY=your-arxiv-key
+# agent-scholar/config/.env
 SEMANTIC_SCHOLAR_API_KEY=your-s2s-key
+# (arXiv / OpenAlex 无需 key / no key needed)
 ```
 
 ---
@@ -217,17 +228,14 @@ SEMANTIC_SCHOLAR_API_KEY=your-s2s-key
 Generate a complete academic report for a specified time period / 生成指定时间内的完整学术报告。
 
 ```bash
-hermes chat -q "/academic-report 搜索最近的深度学习论文"
+cd agent-scholar
+python scripts/pipeline.py "搜索最近的 machine learning 论文，生成报告并发送到我的邮箱" --max-results 8
+# Optional parameters / 可选参数（默认值见 config/.env）：
+#   --language zh|en|bilingual  --time 3y|1y|1w|all  --recipient a@b.com
+#   --format markdown|html  --no-email (只生成不发送 / generate only)  --output-dir <dir>
 ```
 
-**Run full pipeline directly** (bypass Hermes, for debugging/integration) / **直接跑全链路**（不经 Hermes，便于调试/集成）：
-
-```bash
-cd agent-scholar/scripts
-python pipeline.py "搜索最近的 machine learning 论文，生成报告并发送到我的邮箱" --max-results 8
-# Optional parameters / 可选参数：--language bilingual|zh|en  --time 3y|1y|1w  --recipient a@b.com
-#          --format markdown|html  --no-email (generate only, no send / 只生成不发送)
-```
+> Or invoke the `academic-report` skill through your AI Agent (Claude Code, Codex, etc.) with the same natural-language request — the agent runs the pipeline above. / 或通过你的 AI Agent（Claude Code、Codex 等）以同样的自然语言调用 `academic-report` 技能——Agent 会运行上面的 pipeline。
 
 > One command completes: intent parsing → multi-source search → filtering & ranking → in-depth analysis → report generation → email delivery.
 >
@@ -246,62 +254,14 @@ python pipeline.py "搜索最近的 machine learning 论文，生成报告并发
 - "查找关于GPT的最新研究，近1年" / "Find latest GPT research, past 1 year"
 - "检索高被引的计算机视觉论文，SCI期刊，近3年" / "Retrieve highly cited computer vision papers, SCI journals, past 3 years"
 
-### Scheduled Report Mode (Incremental) / 定时报告模式（增量）
-
-Periodically send **incremental** academic reports—each run retrieves only papers updated between「last report time → now」. State persisted in `~/.hermes/academic_scholar_timestamps.json` (one timestamp per topic).
-
-周期性发送**增量**学术报告——每次仅检索「上次报告时间 → 现在」之间更新的论文。状态持久化在 `~/.hermes/academic_scholar_timestamps.json`（每个主题一个时间戳）。
-
-```bash
-cd agent-scholar/scripts
-
-# In-process scheduled loop (parses period phrase, triggers immediately once to build baseline, then runs incrementally by period)
-# 进程内定时循环（解析周期短语，立即首次触发建基线，之后按周期跑增量）
-python scheduler.py "每周一发送 machine learning 论文" --recipient your@email.com
-
-# Test: trigger one incremental run and exit / 测试：立即触发一次增量并退出
-python scheduler.py "每周发送 NLP 报告" --once --recipient your@email.com
-
-# Dry-run: only print period/next trigger time, don't run / 预演：只打印周期/下次触发时间，不运行
-python scheduler.py "每月综述" --dry-run
-
-# Run incremental directly (without scheduler) / 直接跑一次增量（不经调度器）
-python pipeline.py "每周一发送 machine learning 论文" --incremental --recipient your@email.com
-
-# Optional cron: requires `pip install croniter` first, then use standard 5-field cron / 可选 cron：需先 pip install croniter，再用标准 5 字段 cron
-python scheduler.py "每周报告" --cron "0 9 * * 1" --recipient your@email.com
-
-# View/reset timestamps / 查看/重置时间戳
-python timestamp_manager.py            # View all topics' last report times
-python timestamp_manager.py --reset all
-```
-
-**Single Search vs Scheduled Incremental / 单次搜索 vs 定时增量**：
-
-| Dimension / 维度 | Single Search / 单次搜索 | Scheduled Incremental / 定时增量 |
-|---|---|---|
-| Trigger / 触发 | `pipeline.py` one-time / 一次性 | `scheduler.py` loop / `--incremental` |
-| Time Window / 时间窗口 | User-specified (past 1 year/3 years…) / 用户指定（近1年/3年…） | `[last report, now]` / `[上次报告, 现在]`；first=period length / 首次=周期长度 |
-| Paper Scope / 论文范围 | All in window / 窗口内全部 | Only new papers since last report / 仅上次报告后的新论文 |
-| State / 状态 | None / 无 | `~/.hermes/academic_scholar_timestamps.json` |
-| Report / 报告 | Complete landscape / 完整 landscape | Title marked "Incremental / 增量 (since …)" / 标题标「增量 / Incremental (since …)」 |
-| Timestamp Update / 时间戳更新 | Never / 从不 | Only after successful email send / 仅邮件发送成功后 |
-
-**Supported Periods / 支持的周期**: "每周一/每周/每两周/每个月/每天/每N天" + `weekly/monthly/daily/biweekly`.
-**Empty Incremental / 空增量**: Default skips email and doesn't update timestamp when no new papers in current period (`--send-empty` forces notification). / 默认跳过邮件且不更新时间戳（`--send-empty` 可强制通知）。
-**Known Limits / 已知限制**: Semantic Scholar filters by year only + `Paper` stores year only, client-side can only filter by year as fallback, papers in same year's early period may leak in; single-process scheduling (don't run multiple for same topic). / Semantic Scholar 仅按年过滤 + `Paper` 仅存年份，客户端只能按年兜底过滤，同年初段的论文可能漏入；单进程调度（同主题勿多开）。
-
 ### Command Line Options / 命令行选项
 
 ```bash
-# View skill status / 查看技能状态
-/skills
-
 # Test email configuration / 测试邮件配置
-python ~/.hermes/skills/academic-report/scripts/email_sender.py --test
+python agent-scholar/scripts/email_sender.py --test
 
-# View configuration / 查看配置
-hermes config show | grep academic
+# Check loaded config (SMTP/LLM defaults from .env) / 查看加载的配置（来自 .env）
+python agent-scholar/scripts/config_manager.py
 ```
 
 ---
@@ -312,9 +272,8 @@ hermes config show | grep academic
 agent-scholar/
 ├── SKILL.md                    # Skill definition / 技能主定义文件
 ├── requirements.txt             # Python dependencies / Python 依赖
-├── config/                      # Configuration templates / 配置模板
-│   ├── config.example.yaml
-│   └── env.example
+├── config/                      # Configuration (single source) / 配置（唯一来源）
+│   └── .env.example             # Template — copy to .env and fill in / 模板，复制为 .env 填值
 ├── scripts/                     # Core modules / 核心功能模块
 │   ├── __init__.py
 │   ├── utils.py                # Data models and utilities / 数据模型和工具
@@ -326,9 +285,7 @@ agent-scholar/
 │   ├── paper_analyzer.py       # Information analysis ✅ / 信息分析/整体分析/奠基论文
 │   ├── report_generator.py     # Report generation (MD/HTML/bilingual) ✅ / 报告生成
 │   ├── email_sender.py         # Email delivery (SMTP/SSL) ✅ / 邮件发送
-│   ├── pipeline.py             # Full pipeline + incremental branch ✅ / 全链路编排 + 增量分支
-│   ├── timestamp_manager.py    # Scheduled report timestamps (incremental window) ✅ / 定时报告时间戳
-│   ├── scheduler.py            # Scheduled report scheduler (in-process) ✅ / 定时报告调度器
+│   ├── pipeline.py             # Full pipeline orchestrator ✅ / 全链路编排
 │   └── llm_analyzer.py         # Four-element LLM analysis (Zhipu GLM, layered fallback) ✅ / 四要素 LLM 分析
 ├── templates/                  # Report templates / 报告模板
 │   └── report_html_template.html  ✅
@@ -349,6 +306,8 @@ agent-scholar/
 ## 🛠️ Development Status / 开发状态
 
 ### Current Progress / 当前进度
+
+- [x] **Refactor — De-Hermes & Unified Config (2026-08-02, in progress)**: making the skill **platform-agnostic** (Claude / Codex / any agent). Phase 1 ✅ — removed all `~/.hermes/` hardcoded paths via a single data dir (`agent-scholar/config/`); de-branded "Agent Scholar for Hermes Agent" → "Agent Scholar". Phase 2 ✅ — **single config source**: `agent-scholar/config/.env` (copied from `.env.example`); config_manager getters now read env vars (SMTP / LLM / API keys / report params); deleted legacy `env.example` + `config.example.yaml`; `.gitignore` updated. Scheduled-feature removal (Phase 5) and SKILL.md cleanup (Phase 3) pending. / 重构——去 Hermes 化与配置统一（2026-08-02，进行中）：技能改为**平台无关**（Claude / Codex / 任意 agent）。Phase 1 ✅——以单一数据目录 `agent-scholar/config/` 取代全部 `~/.hermes/` 硬编码路径；品牌串去 Hermes。Phase 2 ✅——**唯一配置来源** `config/.env`（由 `.env.example` 复制）；config_manager getter 改读环境变量；删除旧 `env.example` + `config.example.yaml`；更新 `.gitignore`。周期功能移除（Phase 5）与 SKILL.md 清理（Phase 3）待办。
 
 - [x] **Documentation Consolidation (2026-07-31)**: repo reorg — design/plan/report files consolidated under `docs/` & `docs/notes/`; README skill name aligned to `academic-report` (matches `name:` field); test counts corrected to **308**; project-structure block fixed (removed non-existent `references/` + `report_template.md`, noted `reports/` as gitignored); 作品展示 sample-report links repointed to `examples/`; source `SKILL.md` switched to portable relative paths. / 文档整理（2026-07-31）：目录重组——设计/计划/报告文件归入 `docs/` 与 `docs/notes/`；README 技能名对齐 `academic-report`（与 `name:` 字段一致）；测试数校正为 **308**；项目结构块修正（删除不存在的 `references/` + `report_template.md`，标注 `reports/` 为 gitignore）；作品展示 报告样本链接改指 `examples/`；源码 `SKILL.md` 改可移植相对路径。
 
@@ -372,10 +331,10 @@ agent-scholar/
   
 - [x] **Phase 4**: Email Delivery ✅ / 邮件发送 ✅
   - [x] SMTP email delivery (SSL/TLS branching, HTML body+attachment, retry, connection test, 42 tests incl. proxy auto-detect, local-SOCKS-probe regression, send-log, cooldown guard / SMTP 邮件发送（SSL/TLS 分流、HTML 正文+附件、重试、连接测试，42 项测试含代理自动识别 + 本地 SOCKS 探测回归 + 发送日志 + 冷却守卫）
-  - [x] Scheduled task management ✅ (`timestamp_manager.py` per-topic timestamps + `scheduler.py` in-process incremental scheduler; client-side year fallback filtering / 定时任务管理 ✅（`timestamp_manager.py` 每主题时间戳 + `scheduler.py` 进程内定时增量；客户端年份兜底过滤）
-  
+  - [~] ~~Scheduled task management~~ — **removed in v2.0 refactor**（周期功能移除：`scheduler.py`/`timestamp_manager.py` 已删，改由调用方按需重复调用 pipeline）/ periodic reporting removed; callers repeat the pipeline call as needed
+
 - [x] **Phase 5**: Testing & Verification (Complete, **308 tests** total) / 测试验证（完成，合计 **308 项**）
-  - [x] config_manager.py tests ✅ (5 tests; including ~/.hermes/.env auto-loading / 5 项；含 ~/.hermes/.env 自动加载)
+  - [x] config_manager.py tests ✅ (5 tests; including config/.env auto-loading / 5 项；含 config/.env 自动加载)
   - [x] paper_search.py tests ✅ (36 tests; including OpenAlex abstract reconstruction, S2 tldr parsing, doi/null handling, arXiv date, dedup regression / 36 项；含 OpenAlex 摘要重建、S2 tldr 解析、doi/null、arXiv 日期、去重回归)
   - [x] paper_filter.py tests ✅ (28 tests / 28 项)
   - [x] paper_analyzer.py tests ✅ (53 tests / 53 项)
@@ -404,21 +363,22 @@ python3 --version
 # Test dependency installation / 测试依赖安装
 pip list | grep -E "arxiv|scholarly|jinja2"
 
-# Test Hermes Agent / 测试 Hermes Agent
-hermes chat -q "List all skills" / 列出所有技能
+# Test config loading (from config/.env) / 测试配置加载（来自 config/.env）
+python agent-scholar/scripts/config_manager.py
 ```
 
 ### Function Tests / 功能测试
 
 ```bash
-# Test basic search / 测试基本搜索
-hermes chat -q "/academic-report 搜索机器学习论文"
+# Test basic search (generate only, no email) / 测试基本检索（只生成不发送）
+cd agent-scholar
+python scripts/pipeline.py "搜索机器学习论文" --no-email --max-results 5
 
 # Test email configuration / 测试邮件配置
-python3 agent-scholar/scripts/email_sender.py --test
+python scripts/email_sender.py --test
 
-# Test complete workflow (requires all modules) / 测试完整流程（需要完成所有模块）
-hermes chat -q "/academic-report 搜索深度学习论文，生成报告并发送到我的邮箱"
+# Test complete workflow (search → report → email) / 测试完整流程（检索→报告→邮件）
+python scripts/pipeline.py "搜索深度学习论文，生成报告并发送到我的邮箱"
 ```
 
 ---
@@ -470,9 +430,6 @@ Contributions are welcome! Please report issues or suggest improvements! / 欢�
 
 ## 📚 Related Resources / 相关资源
 
-- [Hermes Agent Official Documentation / Hermes Agent 官方文档](https://hermes-agent.nousresearch.com/docs/)
-- [Hermes Agent GitHub / Hermes Agent GitHub](https://github.com/NousResearch/hermes-agent)
-- [SKILL.md Specification / SKILL.md 规范](https://hermes-agent.nousresearch.com/docs/developer-guide/creating-skills)
 - [Implementation Plan / 实施计划文档](docs/agent-scholar%20skill实施计划.md)
 - [Portfolio / 作品展示](作品展示/README.md) — 求职/科研申请作品集(技术文档、Demo 脚本、使用案例、性能评估、对比表格)
 
@@ -496,15 +453,20 @@ Contributions are welcome! Please report issues or suggest improvements! / 欢�
 3. Check log files for detailed error messages / 查看日志文件获取详细错误信息
 4. **SMTP timeout `[WinError 10060]` / SMTP 连接超时**：直连被墙（防火墙 DPI / 全局代理把国内 SMTP 也路由到墙外）时属正常——`email_sender` 会**自动回退**到本地 SOCKS 代理（探测 `127.0.0.1:{7897,7890,1080,...}`，如 Clash/V2Ray）。若仍失败：确认本地代理在跑、或显式设 `SMTP_SOCKS_PROXY=socks5://127.0.0.1:7897`。可用 `python scripts/email_sender.py --test` 单独排查（日志打印策略链与命中策略）。/ Direct connection blocked (firewall DPI / global proxy routing domestic SMTP abroad) is expected — `email_sender` **auto-falls-back** to a local SOCKS proxy (probes `127.0.0.1:{7897,7890,1080,...}`, e.g. Clash/V2Ray). If still failing: ensure the local proxy is running, or set `SMTP_SOCKS_PROXY=socks5://127.0.0.1:7897` explicitly. Run `python scripts/email_sender.py --test` to isolate (logs print the strategy chain and the hit strategy).
    - **历史根因（v1.1.1 已修，2026-07-21）**：本地 SOCKS 端口探测曾误用 `socket` 类的 `create_connection`（实为模块函数），导致直连失败且无环境变量代理时兜底探测抛 `AttributeError`、回退彻底无法启动。已改用模块级 `_REAL_CREATE_CONNECTION`，回归测试 `TestAutoLocalSocksProbe` 锁死。/ **Historical root cause (fixed in v1.1.1, 2026-07-21)**: the local-SOCKS port probe mistakenly called `create_connection` on the `socket` *class* (it's a module function), so when direct failed with no env-var proxy the fallback crashed with `AttributeError` and email always failed. Fixed to use the module-level `_REAL_CREATE_CONNECTION`; regression-locked by `TestAutoLocalSocksProbe`.
-5. **看到「发送冷却中」属正常**（v1.3.0）：认证失败（含 QQ 登录限频的假性 535）后，`email_sender` 会**指数退避冷却**（30→60→120→300s）并自动拒发（不再登录 QQ，避免轰炸加重限频）。等待冷却结束或设 `EMAIL_SKIP_COOLDOWN=1` 手动强制。每次发送（成功/失败/冷却）都记录在 `~/.hermes/email_sends.jsonl`，`tail` 即可排查。/ **"In cooldown" is expected** (v1.3.0): after an auth failure (incl. QQ throttle's false 535), `email_sender` **backs off exponentially** (30→60→120→300s) and auto-skips sending (no QQ login, to avoid deepening the throttle). Wait it out, or set `EMAIL_SKIP_COOLDOWN=1` to force. Every attempt (success/fail/cooldown) is logged to `~/.hermes/email_sends.jsonl` — `tail` it to diagnose.
+5. **看到「发送冷却中」属正常**（v1.3.0）：认证失败（含 QQ 登录限频的假性 535）后，`email_sender` 会**指数退避冷却**（30→60→120→300s）并自动拒发（不再登录 QQ，避免轰炸加重限频）。等待冷却结束或设 `EMAIL_SKIP_COOLDOWN=1` 手动强制。每次发送（成功/失败/冷却）都记录在 `agent-scholar/config/email_sends.jsonl`，`tail` 即可排查。/ **"In cooldown" is expected** (v1.3.0): after an auth failure (incl. QQ throttle's false 535), `email_sender` **backs off exponentially** (30→60→120→300s) and auto-skips sending (no QQ login, to avoid deepening the throttle). Wait it out, or set `EMAIL_SKIP_COOLDOWN=1` to force. Every attempt (success/fail/cooldown) is logged to `agent-scholar/config/email_sends.jsonl` — `tail` it to diagnose.
 
 ### Q: How to disable preprints? / 如何禁用预印本？
 
 **A**: Set `include_preprints: false` in config.yaml. / 设置 `include_preprints: false` 在 config.yaml 中。
 
-### Q: How to configure scheduled reports? / 定时报告如何配置？
+### Q: 定时/周期报告怎么做？ / How to run periodic reports?
 
-**A**: Use the standalone scheduler `python scheduler.py "每周一发送X领域论文" --recipient your@email.com` (in-process incremental scheduler, no Hermes dependency); or single incremental run `python pipeline.py "..." --incremental`. Optional cron: run `pip install croniter` first, then use `--cron "0 9 * * 1"`. / 用独立调度器 `python scheduler.py "每周一发送X领域论文" --recipient your@email.com`（进程内定时增量，不依赖 Hermes）；或单次增量 `python pipeline.py "..." --incremental`。可选 `pip install croniter` 后用 `--cron "0 9 * * 1"`。
+**A**: 本技能不内置定时功能（v2.0 已移除 scheduler）。如需周期报告，由调用方（AI Agent、系统 cron、launchd 等）按需重复调用 pipeline 即可 / This skill ships no built-in scheduler (removed in v2.0). For periodic reports, have the caller (AI Agent, system cron, launchd, etc.) invoke the pipeline on a schedule:
+
+```bash
+# 系统 cron 示例：每周一 09:00 跑一次 / system cron example: every Monday 09:00
+# 0 9 * * 1  cd /path/to/agent-scholar && python scripts/pipeline.py "搜索 machine learning 论文，发到我邮箱"
+```
 
 ---
 
@@ -522,7 +484,6 @@ Agent Scholar Team
 
 ## 🙏 Acknowledgments / 致谢
 
-- [Hermes Agent](https://github.com/NousResearch/hermes-agent) - Powerful AI Agent framework / 强大的 AI Agent 框架
 - [arXiv](https://arxiv.org/) - Open access academic paper preprints / 开放获取的学术论文预印本
 - [Semantic Scholar](https://www.semanticscholar.org/) - AI-driven academic search / AI 驱动的学术搜索
 - [OpenAlex](https://openalex.org/) - Open scholarly index / 开放的学术索引

@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 import argparse
 
-from utils import SearchIntent, parse_date_range, schedule_interval
+from utils import SearchIntent, parse_date_range
+from config_manager import get_config_manager
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ class IntentParser:
 
     def __init__(self):
         """初始化解析器"""
+        # 默认值统一来自 .env（config_manager），脚本内不再硬编码默认
+        self.config = get_config_manager()
         # 研究领域关键词映射
         self.field_keywords = {
             'machine_learning': ['机器学习', 'machine learning', 'ML', '深度学习', 'deep learning'],
@@ -68,17 +71,9 @@ class IntentParser:
         # 识别语言
         language = self._identify_language(user_input)
 
-        # 定时检测（在时间范围之前，便于给定时输入一个短窗口）
-        is_scheduled = self._detect_schedule(user_input)
-        schedule = self._extract_schedule(user_input) if is_scheduled else None
-
-        # 提取时间范围
+        # 提取时间范围（默认来自 .env DEFAULT_TIME_RANGE）
         time_range_text = self._extract_time_range(user_input)
-        if is_scheduled and not self._has_explicit_time_range(user_input):
-            # 定时输入且无显式「近N」：用周期默认短窗口（而非近3年）
-            start_date, end_date = self._schedule_default_window(schedule)
-        else:
-            start_date, end_date = parse_date_range(time_range_text)
+        start_date, end_date = parse_date_range(time_range_text)
 
         # 识别文献类型
         paper_types = self._identify_paper_types(user_input)
@@ -96,8 +91,6 @@ class IntentParser:
             end_date=end_date,
             paper_types=paper_types,
             filters=filters,
-            is_scheduled=is_scheduled,
-            schedule=schedule,
         )
 
         logger.info(f"解析结果: {intent.to_dict()}")
@@ -115,22 +108,13 @@ class IntentParser:
             r'最新的|recent|latest',
             r'生成报告|generate report',
             r'发送邮件|send email',
-            r'发送|send',                         # 定时报告的发送动词
-            # 定时/周期短语（从查询里剔除，避免污染检索词与 topic_key）
-            r'每\s*周[一二三四五六日天]?',
-            r'每\s*个?月|每月',
-            r'每\s*两?\s*周',
-            r'每\s*[天日]',
-            r'每\s*\d+\s*[天日]',
-            r'定时|周期|定期|weekly|monthly|daily|biweekly',
-            r'every\s+\d+\s+days?',
         ]
 
         for pattern in instruction_patterns:
             text = re.sub(pattern, '', text, flags=re.IGNORECASE)
 
         query = text.strip()
-        return query if query else "人工智能"  # 默认查询
+        return query if query else self.config.get_default_query()  # 默认查询（来自 .env）
 
     def _extract_keywords(self, text: str) -> List[str]:
         """提取关键词"""
@@ -166,10 +150,7 @@ class IntentParser:
 
     def _identify_language(self, text: str) -> str:
         """识别语种偏好"""
-        # 检查是否包含中文
-        has_chinese = bool(re.search(r'[一-鿿]', text))
-
-        # 检查语言关键词
+        # 检查语言关键词（用户显式说"中文/英文/双语"时用对应语种）
         language_patterns = {
             'en': [r'\benglish\b', r'英文', r'英语'],
             'zh': [r'\bchinese\b', r'中文', r'汉语'],
@@ -181,8 +162,8 @@ class IntentParser:
                 if re.search(pattern, text, re.IGNORECASE):
                     return lang
 
-        # 默认：包含中文返回 zh，否则返回 bilingual
-        return 'zh' if has_chinese else 'bilingual'
+        # 未识别到关键词 → 用 .env 的 DEFAULT_LANGUAGE（不再凭"是否含中文"猜测）
+        return self.config.get_default_language()
 
     def _extract_time_range(self, text: str) -> str:
         """提取时间范围（相对区间 / 绝对日期区间 / 单年 / 不限）。"""
@@ -201,58 +182,8 @@ class IntentParser:
             if match:
                 return match.group(0)
 
-        # 默认：近3年
-        return "近3年"
-
-    # ------------------------- 定时/增量检测 ---------------------------- #
-
-    # 定时触发短语（中英）
-    _SCHEDULE_PATTERNS = [
-        r'每\s*两?\s*周', r'每\s*周[一二三四五六日天]?', r'每\s*个?月',
-        r'每\s*[天日]', r'每\s*(\d+)\s*[天日]',
-        r'定时', r'周期', r'定期',
-        r'every\s*week', r'every\s*month', r'every\s*day',
-        r'every\s*(\d+)\s*days?', r'weekly', r'biweekly', r'monthly', r'daily',
-    ]
-
-    def _detect_schedule(self, text: str) -> bool:
-        """检测是否为定时任务（每周/每月/每两周/每天/定时/周期 等）。"""
-        return any(re.search(p, text, re.IGNORECASE)
-                   for p in self._SCHEDULE_PATTERNS)
-
-    def _extract_schedule(self, text: str) -> Optional[str]:
-        """
-        规范化周期 token：daily / weekly / biweekly / monthly / every-Nd。
-        特定词先于通用词；无明确周期但命中「定时/周期」→ 默认 weekly。
-        """
-        t = text.lower()
-        if re.search(r'每\s*两\s*周|biweekly|fortnight', t):
-            return "biweekly"
-        if re.search(r'每\s*个?月|monthly|every\s*month', t):
-            return "monthly"
-        if re.search(r'每\s*周|weekly|every\s*week', t):
-            return "weekly"
-        if re.search(r'每\s*[天日]|daily|every\s*day', t):
-            return "daily"
-        m = re.search(r'每\s*(\d+)\s*[天日]|every\s*(\d+)\s*days?', t)
-        if m:
-            n = m.group(1) or m.group(2)
-            return f"every-{n}d"
-        if re.search(r'定时|周期|定期', t):
-            return "weekly"  # 无明确周期 → 默认周
-        return None
-
-    def _has_explicit_time_range(self, text: str) -> bool:
-        """是否含显式「近N周/月/年/不限」时间范围（区别于定时短语）。"""
-        explicit = [r'近?\s*\d+\s*周', r'近?\s*\d+\s*个?月',
-                    r'近?\s*\d+\s*年', r'不\s*限|all']
-        return any(re.search(p, text, re.IGNORECASE) for p in explicit)
-
-    def _schedule_default_window(self, schedule: Optional[str]
-                                 ) -> tuple[Optional[datetime], datetime]:
-        """定时模式的默认短窗口 = [now - 周期, now]（首次/展示用，pipeline 会用时间戳覆盖）。"""
-        now = datetime.now()
-        return now - schedule_interval(schedule), now
+        # 默认时间范围来自 .env（DEFAULT_TIME_RANGE，如 3y / 近3年 / 1y / all）
+        return self.config.get_default_time_range()
 
     def _identify_paper_types(self, text: str) -> List[str]:
         """识别文献类型"""

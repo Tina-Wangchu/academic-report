@@ -1,7 +1,6 @@
-# Hermes Agent Academic Scholar Skill Requirements
+# Agent Scholar Skill Requirements
 
-# API 客户端
-arxiv==1.4.8
+# API 客户端（arXiv 检索已改为直接用 requests 查询 https API，不再依赖 arxiv 库）
 scholarly==1.5.0
 requests==2.31.0
 
