@@ -136,7 +136,7 @@ class EmailSender:
             logger.error("报告文件不存在: %s", report_path)
             return False
 
-        file_format = "Markdown" if report_file.suffix == ".md" else "HTML"
+        file_format = self._format_label(report_file.suffix)
 
         user = smtp_config["user"]
 
@@ -232,9 +232,13 @@ class EmailSender:
         body = self._render_body(report_file, file_format)
         msg.attach(MIMEText(body, "html", "utf-8"))
 
-        # 附件
+        # 附件（PDF → application/pdf；其余走默认 octet-stream）
         with open(report_file, "rb") as f:
-            part = MIMEApplication(f.read())
+            data = f.read()
+        if report_file.suffix.lower() == ".pdf":
+            part = MIMEApplication(data, _subtype="pdf")
+        else:
+            part = MIMEApplication(data)
         part.add_header(
             "Content-Disposition",
             "attachment",
@@ -242,6 +246,12 @@ class EmailSender:
         )
         msg.attach(part)
         return msg
+
+    @staticmethod
+    def _format_label(suffix: str) -> str:
+        """报告文件后缀 → 邮件正文格式标签（.md/.pdf → Markdown/PDF；其余 HTML）"""
+        return {".md": "Markdown", ".pdf": "PDF"}.get(
+            (suffix or "").lower(), "HTML")
 
     @staticmethod
     def _render_body(report_file: Path, file_format: str) -> str:

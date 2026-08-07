@@ -23,7 +23,7 @@ python run_all_experiments.py        # 全部 + 生成 summary.md 对照表
 | E6 | 短时间-近1周 | time=1w |
 | E7 | 纯中文报告 | language=zh |
 | E8 | 纯英文报告 | language=en |
-| E9 | HTML 输出 | format=html |
+| E9 | PDF 输出 | format=pdf |
 | E10 | 宽泛多热点 | 多领域查询 |
 | E11 | 空结果-极窄查询 | 造词，测鲁棒性 |
 | E12 | 最小引用门槛 | config.get_min_citation_count=50 |
@@ -34,7 +34,7 @@ python run_all_experiments.py        # 全部 + 生成 summary.md 对照表
 - `filtered.json` — 筛选排序后
 - `hotspots.json` — 热点聚类（标题/年份/引用）
 - `metrics.json` — 各源数量、去重前后、过滤前后、热点分布、耗时、是否离线回退
-- `report.md` 或 `report.html` — 最终报告
+- `report.md` 或 `report.pdf` — 最终报告
 - `output/summary.md` — 预计 vs 实际对照表
 - `output/all_metrics.json` — 全部指标
 

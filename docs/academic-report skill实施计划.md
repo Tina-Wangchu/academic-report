@@ -7,8 +7,9 @@
 > - **Phase 2 ✅ 配置统一**：**唯一配置来源** `academic-report/config/.env`（由 `.env.example` 复制）；`config_manager` getter 改为优先读环境变量（SMTP / LLM / API key / 报告参数）；删除旧 `env.example` + `config.example.yaml`；`.gitignore` 已忽略 `.env` 与运行期数据。
 > - **全部完成 ✅**：Phase 3 / 5 / 6 / 7 均已完成。研究缺口逻辑已从「论文缺陷评价」改为「给读者的深挖方向」（LLM 主 + 规则回退）。
 > - **后续 ✅ 数据源修复（2026-08-03）**：arXiv 检索从坏掉的 `arxiv` 库（HTTP 301 不跟随重定向）改为 `requests`+Atom 直查（0→5 篇）；Semantic Scholar `_build_year_filter` 修正（`2023-,-2026`→`2023-2026`）+ 429 退避重试；`PaperSearcher.search_errors` 让单源失败不再静音（写入 run_data.json）。S2 缺免费 key 的 429 问题暂缓，记录于 `docs/known_issues.md`（含配 key 步骤）。`requirements.txt` 删 `arxiv==1.4.8`。
-> - **后续 ✅ 时间戳运行日志（2026-08-03）**：pipeline 每次运行产出 `reports/{YYYY-MM-DD_HHMMSS}/` 文件夹，内含 `report.md` + `report.html` + `run_data.json`（各模块原始返回：intent / papers_raw / papers_filtered(含四要素) / classified / research_directions / search_errors / timings）。`report_generator` 新增 `generate_both()`——`_prepare` 只跑一次同时产 MD+HTML，避免 LLM 四要素/研究方向重算。
+> - **后续 ✅ 时间戳运行日志（2026-08-03）**：pipeline 每次运行产出 `reports/{YYYY-MM-DD_HHMMSS}/` 文件夹，内含 `report.md` + `report.pdf` + `run_data.json`（各模块原始返回：intent / papers_raw / papers_filtered(含四要素) / classified / research_directions / search_errors / timings）。`report_generator` 新增 `generate_both()`——`_prepare` 只跑一次同时产 MD+PDF，避免 LLM 四要素/研究方向重算。
 > - **SMTP 实测（2026-08-03）**：用户 `config/.env` 配 QQ 邮箱（`smtp.qq.com:465` + 授权码）作发件、Gmail 作默认收件人；已实测 QQ→QQ、QQ→Gmail 真实发送成功。
+> - **后续 ✅ 报告输出 HTML→PDF（2026-08-07）**：用 reportlab（纯 Python，无系统依赖；中文走内置 CID 字体 STSong-Light）将 MD 行向解析为 Platypus flowables 生成 PDF；删除 _convert_to_html 与 templates/report_html_template.html；pipeline 默认附件改 PDF（OUTPUT_FORMAT 默认 pdf，回退 md）；email_sender 识别 .pdf（application/pdf）；requirements +reportlab、-markdown/-jinja2；文档全量同步。
 >
 > ⚠️ 下方原始计划保留作为各模块设计的权威参考，但其中涉及 `~/.hermes/`、`config.example.yaml`、`env.example`、Hermes frontmatter、`scheduler`/`timestamp_manager` 的内容**已过时**——一切以本变更记录为准。
 
@@ -90,11 +91,11 @@ academic-report-2.0/
 │   │   │
 │   │   ├── report_generator.py      # ✅ 学术报告生成器（模块5，已完成）
 │   │   │                            #    四段式 Markdown 报告（命令式渲染）
-│   │   │                            #    HTML 转换（套 templates/report_html_template.html）
+│   │   │                            #    PDF 转换（reportlab 渲染）
 │   │   │                            #    双语（默认 bilingual，按 intent.language 驱动）
 │   │   │                            #    速览按热点概括 + 研究趋势语料派生
 │   │   │                            #    委托 filter/analyzer（Option B）：介绍/整体分析/奠基论文
-│   │   │                            #    用途：生成格式化的学术报告（MD/HTML）
+│   │   │                            #    用途：生成格式化的学术报告（MD/PDF）
 │   │   │
 │   │   ├── email_sender.py          # ✅ 邮件发送器（模块6，已完成）
 │   │   │                            #    SMTP/SSL 分流（465→SSL，587→STARTTLS）
@@ -124,10 +125,9 @@ academic-report-2.0/
 │   │   │                            #    Jinja2 模板变量
 │   │   │                            #    用途：生成Markdown格式的学术报告
 │   │   │
-│   │   └── report_html_template.html # ✅ HTML 报告模板（已完成，实际文件已创建）
-│   │                                #    HTML结构和CSS样式
-│   │                                #    响应式设计
-│   │                                #    用途：生成美观的HTML报告
+│   │   └── report_html_template.html # 🗑 已删除（2026-08-07 PDF 改造移除，原 HTML 报告模板）
+│   │                                #    历史：HTML结构和CSS样式、响应式设计
+│   │                                #    现已由 reportlab（_convert_to_pdf）取代，不再生成 HTML 报告
 │   │
 │   └── references/                   # 参考文档目录
 │       ├── apa_citation_guide.md     # ⏳ APA 7th 引用格式指南
@@ -168,8 +168,8 @@ academic-report-2.0/
 | `paper_filter.py` | 筛选排序 | ✅ 完成 | 质量过滤、优先级排序、热点聚类（≥2 收敛+topic_hint 相关性）、热点介绍、年份级时间安全网（test_paper_filter.py 27项） |
 | `paper_analyzer.py` | 信息分析 | ✅ 完成 | 结构化提取、APA 7th、方向级整体分析、奠基论文（真实 S2 references API + 离线回退）；AbstractSummarizer 完整去填充摘要；四要素分层（**LLM 生成式→规则回退**，由 `llm_analyzer.FourElementAnalyzer` 调度；StructuredExtractor 作离线规则版）（test_paper_analyzer.py 50项） |
 | `llm_analyzer.py` | 四要素 LLM | ✅ 新增（v1.1.0） | `ZhipuProvider`（智谱 GLM 的 Anthropic 兼容端点，复用 ANTHROPIC_AUTH_TOKEN，零新依赖）+ `FourElementAnalyzer`（LLM→规则分层 + 按 DOI/title/language 缓存）；**v1.1.0：prompt 由 `_system_prompt(language)` 按 `intent.language` 构造**（zh=中文 / en=英文 / bilingual=每要素中英两段），修复旧版"四要素恒中文、无视 language"；`temperature=0`（test_llm_analyzer.py 32项，mock，含 TestLanguageControl 9项） |
-| `report_generator.py` | 报告生成 | ✅ 完成 | 四段式 MD/HTML、双语（默认 bilingual）、速览按热点逐篇概述、**单篇块四要素**（LLM/规则统一渲染，全空回退完整 Abstract）、趋势语料派生、Option B 委托（test_report_generator.py 23项） |
-| `templates/report_html_template.html` | HTML 模板 | ✅ 完成 | HTML 外壳 + CSS 样式 |
+| `report_generator.py` | 报告生成 | ✅ 完成 | 四段式 MD/PDF、双语（默认 bilingual）、速览按热点逐篇概述、**单篇块四要素**（LLM/规则统一渲染，全空回退完整 Abstract）、趋势语料派生、Option B 委托（test_report_generator.py 23项） |
+| `templates/report_html_template.html` | HTML 模板 | 🗑 已删除 | (2026-08-07 PDF 改造删除，原 HTML 外壳 + CSS 样式) |
 | `email_sender.py` | 邮件发送 | ✅ 完成（v1.1.1） | SMTP/SSL 分流、HTML 正文+附件、重试、**代理自动识别（直连→SOCKS 回退，开/关代理都能发）**、连接测试（test_email_sender.py 29项）。**v1.1.1（2026-07-21）**：修本地 SOCKS 探测 bug——`_connect_auto_local_socks` 误用 `_REAL_SOCKET.create_connection`（socket 类无此方法），导致直连失败且无环境变量代理时兜底探测抛 `AttributeError`、回退彻底无法启动（**Jul 21 邮件失败根因**）；改用模块级 `_REAL_CREATE_CONNECTION`，回归测试 `TestAutoLocalSocksProbe` 锁死。 |
 
 #### 定时报告模块 ✅（2026-07-13 实现）
@@ -181,7 +181,7 @@ academic-report-2.0/
 | `intent_parser.py` | 调度检测 | ✅ 增强 | `_detect_schedule`/`_extract_schedule`（daily/weekly/biweekly/monthly/every-Nd）+ `_schedule_default_window`；定时短语从 query 剔除（test_intent_parser.py 37项） |
 | `pipeline.py` | 增量分支 | ✅ 增强 | `incremental`/`topic_override`/`no_incremental`/`send_empty`；窗口=`[last_run, now]`、客户端年份兜底过滤、邮件主题前缀、**仅成功后更新时间戳**、空增量跳过 |
 | `utils.py` | 数据模型 | ✅ 增强 | `SearchIntent` 加 `is_scheduled`/`schedule`；新增 `schedule_interval(token)` |
-| `report_generator.py` | 增量标记 | ✅ 增强 | `is_scheduled` 时标题下加「增量报告 / Incremental (since …)」；HTML title 前缀 |
+| `report_generator.py` | 增量标记 | ✅ 增强 | `is_scheduled` 时标题下加「增量报告 / Incremental (since …)」；PDF 标题前缀 |
 
 ### 📁 配置和模板文件
 
@@ -199,7 +199,7 @@ academic-report-2.0/
 | 文件 | 用途 | 格式 |
 |------|------|------|
 | `templates/report_template.md` | MD报告模板 | Markdown + Jinja2 |
-| `templates/report_html_template.html` | HTML报告模板 | HTML + CSS |
+| `templates/report_html_template.html` | 🗑 已删除（2026-08-07 PDF 改造） | HTML + CSS |
 
 #### 参考文档
 
@@ -1413,11 +1413,11 @@ class PaperAnalyzer:
         return [format_apa_citation(paper) for paper in papers]
 ```
 
-### 模块5：生成学术报告（MD/HTML格式）✅ 已完成（2026-07-12）
+### 模块5：生成学术报告（MD/PDF格式）✅ 已完成（2026-07-12）
 
 #### 报告格式设计规范（源自 `报告格式设计.md`）✅ 已纳入
 
-> ⚠️ 本规范为报告生成的**权威格式要求**，`report_generator.py` 与报告模板（`templates/report_template.md`、`templates/report_html_template.html`）必须严格遵循。以下要求与早期版本（标题仅含字段名、摘要 100-200 字、Abstract ≤300 字、分类无热点介绍）存在差异，**实现时以本规范为准**。
+> ⚠️ 本规范为报告生成的**权威格式要求**，`report_generator.py` 与报告模板（`templates/report_template.md`）必须严格遵循。以下要求与早期版本（标题仅含字段名、摘要 100-200 字、Abstract ≤300 字、分类无热点介绍）存在差异，**实现时以本规范为准**。
 
 **1. 标题 / Title**
 - 格式：`{时间范围} {领域/主题} 报告`（中文或英文）
@@ -1471,7 +1471,7 @@ class PaperAnalyzer:
 > 6. **填充分析字段**：`_prepare` 先调 `analyzer.analyze_papers` 填充 research_content/innovations/conclusions；参考代码未调，字段为空。
 > 7. **Option B 委托**：热点介绍/整体分析/奠基论文**改调** `paper_filter` 与 `paper_analyzer`，**不再自带**这 3 个方法（参考代码仍自带）。
 >
-> 另：实际用**命令式 `_render_markdown`** 渲染 MD（便于精确控字数/双语），HTML 套 `templates/report_html_template.html`（实体文件已创建）；参考代码中的 Jinja2 `report_template.md` 仅作参考，未被实际渲染采用。
+> 另：实际用**命令式 `_render_markdown`** 渲染 MD（便于精确控字数/双语），PDF 由 `_convert_to_pdf`（reportlab）从 MD 生成（2026-08-07 起，原 HTML 套模板已移除）；参考代码中的 Jinja2 `report_template.md` 仅作参考，未被实际渲染采用。
 >
 > 8. **单篇块四要素摘录（2026-07-13 改，替代单篇 Abstract 段）**：单篇论文块按四段展示——**解决的问题 / 现有方案（引用先前工作）/ 新方案 / 效果及局限性**——每段为从论文摘要中摘录的匹配语段（`paper_analyzer.StructuredExtractor` 按句匹配信号词，中英文均支持；优先级 新方案→现有方案→问题→效果，互不重复；问题无显式句时回退首句=背景）。摘录不到的要素显示「未明确提及 / Not explicitly mentioned」；**四要素全空**时整段回退为完整 Abstract（`AbstractSummarizer` 去填充版，≤1500 字符、无 `...`；摘要缺失回退 S2 tldr，均无则占位）。`AbstractSummarizer` 仍生成 `condensed_abstract` 供速览 `_paper_finding` 与该回退使用。
 > 9. **数据质量降级（报告格式设计.md §10，实验驱动）**：四要素全空且无摘要时显示占位「（暂无摘要 / No abstract available）」；`classify_by_topic` 传入 `topic_hint`（查询+领域）提升热点与搜索主题的相关性。
@@ -1484,7 +1484,7 @@ class PaperAnalyzer:
 ```python
 """
 学术报告生成模块
-支持 Markdown 和 HTML 格式
+支持 Markdown 和 PDF 格式
 """
 
 import logging
@@ -1514,7 +1514,7 @@ class ReportGenerator:
         Args:
             papers: 论文列表
             intent: 搜索意图
-            output_format: 输出格式（markdown/html）
+            output_format: 输出格式（markdown/pdf）
 
         Returns:
             报告内容
@@ -1537,11 +1537,11 @@ class ReportGenerator:
             report = self._render_markdown_report(
                 papers, classified_papers, summary, trends, intent
             )
-        elif output_format == 'html':
+        elif output_format == 'pdf':
             md_report = self._render_markdown_report(
                 papers, classified_papers, summary, trends, intent
             )
-            report = self._convert_to_html(md_report)
+            report = self._convert_to_pdf(md_report)
         else:
             raise ValueError(f"不支持的格式: {output_format}")
 
@@ -1839,6 +1839,7 @@ class ReportGenerator:
         topic = abstract[:80].rstrip() + "…" if len(abstract) > 80 else abstract
         return topic or paper.title
 
+    # ⚠️ 以下 HTML 实现已于 2026-08-07 被 `_convert_to_pdf`（reportlab）取代，保留作历史参考。
     def _convert_to_html(self, markdown_text: str) -> str:
         """将 Markdown 转换为 HTML"""
         # 使用 markdown 库转换
@@ -1918,7 +1919,7 @@ def main():
     parser = argparse.ArgumentParser(description='生成学术报告')
     parser.add_argument('--input', type=str, required=True, help='分析后的论文JSON文件')
     parser.add_argument('--output', type=str, required=True, help='输出报告文件路径')
-    parser.add_argument('--format', type=str, default='markdown', choices=['markdown', 'html'], help='报告格式')
+    parser.add_argument('--format', type=str, default='markdown', choices=['markdown', 'pdf'], help='报告格式')
     parser.add_argument('--intent', type=str, help='搜索意图JSON文件')
 
     args = parser.parse_args()
@@ -2034,6 +2035,8 @@ if __name__ == '__main__':
 #### 文件：`templates/report_html_template.html`
 
 **HTML 报告模板**：
+
+> ⚠️ 以下 HTML 实现已于 2026-08-07 被 `_convert_to_pdf`（reportlab）取代，保留作历史参考。
 
 ```html
 <!DOCTYPE html>
@@ -2512,7 +2515,7 @@ if __name__ == '__main__':
 **Day 6-7**: 模块5
 - 创建报告模板
 - 实现报告生成
-- MD到HTML转换
+- MD到PDF转换
 
 **Day 8-9**: 模块6
 - 实现邮件发送
@@ -2572,7 +2575,7 @@ hermes config set skills.config.academic.max_results 50
 - [x] 主题分类合理（热点聚类 ≥2 收敛 + topic_hint 相关性）
 - [x] APA 7th格式正确
 - [x] MD报告格式正确
-- [x] HTML报告渲染正常
+- [x] PDF报告生成正常
 - [x] 邮件成功送达
 - [x] 定时任务按时触发（scheduler.py 进程内定时）
 - [x] 增量报告仅包含新论文（[last_run, now] 窗口 + 年份兜底过滤）

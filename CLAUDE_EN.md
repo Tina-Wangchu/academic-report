@@ -51,7 +51,7 @@ Paper Filter (priority ranking, topic classification, deduplication)
     ↓
 Paper Analyzer (extract metadata, analyze content, generate APA citations)
     ↓
-Report Generator (Markdown/HTML report generation with trends analysis)
+Report Generator (Markdown/PDF report generation with trends analysis)
     ↓
 Email Sender (SMTP delivery with attachments)
 ```
@@ -68,7 +68,7 @@ The system follows a pipeline architecture with 6 core modules + 2 mode/infra mo
 - `paper_search.py` - Multi-source paper searcher (arXiv, Semantic Scholar, OpenAlex; date filtering)
 - `paper_filter.py` - Intelligent filtering, ranking, hotspot clustering
 - `paper_analyzer.py` - Information extraction, four-element excerpts, APA 7th, overall analysis, foundational papers
-- `report_generator.py` - Academic report generator (Markdown + HTML, bilingual, four-element excerpts, incremental label)
+- `report_generator.py` - Academic report generator (Markdown + PDF, bilingual, four-element excerpts, incremental label)
 - `email_sender.py` - SMTP/SSL email sender（attachments, retry, **auto-detect proxy: direct → SOCKS fallback**, so mail sends whether proxy on/off）
 - `pipeline.py` - Full-chain orchestrator (search→report→email) + **incremental branch** (`--incremental`)
 - `timestamp_manager.py` ✅ - Persists per-topic last-run timestamps (`~/.hermes/academic_scholar_timestamps.json`) for incremental mode
@@ -217,11 +217,11 @@ hermes chat
 
 **Phase 2 (Medium Priority)** - Analysis and reporting:
 3. `paper_analyzer.py` - Information extraction, APA 7th formatting, related paper lookup
-4. `report_generator.py` - Markdown generation, HTML conversion, trend analysis, template rendering
+4. `report_generator.py` - Markdown generation, PDF conversion (reportlab), trend analysis
 
 **Phase 3 (Low Priority)** - Delivery and testing:
 5. `email_sender.py` - SMTP integration with retry logic
-6. `templates/` - Create report_template.md and report_html_template.html
+6. `templates/` - Create report_template.md (HTML template removed; PDF now rendered via reportlab)
 
 ## Data Source Integration
 
@@ -245,7 +245,7 @@ When implementing `paper_search.py`:
 
 ## Report Structure
 
-Generated reports follow the spec in `docs/报告格式设计.md` (bilingual CN/EN, **authoritative**). The `report_generator.py` Module 5 and `templates/report_template.md` / `report_html_template.html` must conform. Structure:
+Generated reports follow the spec in `docs/报告格式设计.md` (bilingual CN/EN, **authoritative**). The `report_generator.py` Module 5 and `templates/report_template.md` must conform (PDF is rendered via reportlab; the HTML template is no longer used). Structure:
 
 1. **Title + Time** — `{time_range} {field/topic} Report` (e.g., `2023-2025 Statistics Research Report`); a small-font line shows both the **report generation time** and the **report coverage time** (paper publication range from `intent.start_date`–`end_date`)
 2. **I. Report Overview (报告速览)** — summarize **by hotspot** (not per-paper): list which hotspots the report covers + each hotspot's specific finding (representative paper's result/conclusion); do not list every paper title

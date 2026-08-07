@@ -10,9 +10,9 @@
 
 ## 📖 Overview / 简介
 
-**Academic Report** is an AI Agent skill that searches multiple scholarly sources, filters and ranks the results, analyzes each paper, and generates a bilingual Markdown/HTML report — then sends it by email. Trigger it through your AI Agent (Claude Code, Codex, etc.) or run the pipeline directly.
+**Academic Report** is an AI Agent skill that searches multiple scholarly sources, filters and ranks the results, analyzes each paper, and generates a bilingual Markdown/PDF report — then sends it by email. Trigger it through your AI Agent (Claude Code, Codex, etc.) or run the pipeline directly.
 
-**Academic Report** 是一个 AI Agent 技能：从多个学术数据源检索论文，筛选排序后逐篇分析，生成双语 Markdown/HTML 报告并通过邮件发送。可通过 AI Agent（Claude Code、Codex 等）触发，也可直接运行 pipeline。
+**Academic Report** 是一个 AI Agent 技能：从多个学术数据源检索论文，筛选排序后逐篇分析，生成双语 Markdown/PDF 报告并通过邮件发送。可通过 AI Agent（Claude Code、Codex 等）触发，也可直接运行 pipeline。
 
 ---
 
@@ -26,7 +26,7 @@
 | Multi-source Search / 多源检索 | Parallel search across arXiv / Semantic Scholar / OpenAlex with rate limiting / 三源并行检索，含限流 |
 | Filtering & Ranking / 筛选排序 | Priority scoring, hotspot clustering, dedup / 优先级评分、热点聚类、去重 |
 | Analysis / 深度分析 | Metadata extraction, four-element LLM excerpt, APA 7th, domain-level synthesis, foundational papers / 元数据提取、四要素 LLM 摘录、APA 7th、方向级综合、奠基论文 |
-| Report Generation / 报告生成 | 4-section bilingual Markdown + HTML / 四段式双语 Markdown + HTML |
+| Report Generation / 报告生成 | 4-section bilingual Markdown + PDF / 四段式双语 Markdown + PDF |
 | Email Delivery / 邮件发送 | SMTP/SSL with attachment, retry, auto proxy detection / SMTP/SSL 带附件、重试、代理自动识别 |
 
 ### Data Sources / 数据源
@@ -59,7 +59,7 @@ All modules live in `academic-report/scripts/` / 各模块位于 `academic-repor
 | `paper_filter.py` | Ranking + hotspot clustering / 排序 + 热点聚类 |
 | `paper_analyzer.py` | Metadata, APA, overall analysis, foundational papers / 元数据、APA、整体分析、奠基论文 |
 | `llm_analyzer.py` | Four-element LLM analysis (any Anthropic-compatible provider, default Zhipu GLM; rule fallback) / 四要素 LLM 分析（任意 Anthropic 兼容服务，默认智谱 GLM；规则回退） |
-| `report_generator.py` | MD/HTML bilingual report / MD/HTML 双语报告 |
+| `report_generator.py` | MD/PDF bilingual report / MD/PDF 双语报告 |
 | `email_sender.py` | SMTP delivery with auto proxy detection / SMTP 发送，代理自动识别 |
 | `config_manager.py` · `rate_limiter.py` · `utils.py` | Config / rate limiting / data models / 配置 / 限流 / 数据模型 |
 
@@ -152,7 +152,7 @@ Generated reports are bilingual (zh/en) and follow [`docs/报告格式设计.md`
 3. **Classified papers / 分类论文展示** — papers clustered by hotspot; each with metadata, four-element excerpt (problem / existing / new / results & limitations), overall analysis, foundational references, APA 7th / 按热点聚类；每篇含元数据、四要素摘录（问题/现有方案/新方案/效果与局限）、整体分析、奠基参考、APA 7th
 4. **Research trends / 研究趋势** — future directions & gaps / 未来方向与研究缺口
 
-Output formats / 输出格式: Markdown (default / 默认) and HTML.
+Output formats / 输出格式: Markdown (default, also the PDF source / 默认，同时是 PDF 源) + PDF (rendered from MD via reportlab / 由 reportlab 从 MD 渲染).
 
 ---
 

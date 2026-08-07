@@ -150,8 +150,11 @@ def run_experiment(sc):
         metrics["report_ok"] = False
         report = f"# 报告生成失败\n\n{e}\n\n{traceback.format_exc()}"
 
-    # 奠基论文是否走离线回退
-    metrics["foundational_offline_fallback"] = "离线回退" in report
+    # 奠基论文是否走离线回退（PDF 为 bytes，仅对 MD 文本检查）
+    if isinstance(report, str):
+        metrics["foundational_offline_fallback"] = "离线回退" in report
+    else:
+        metrics["foundational_offline_fallback"] = False
 
     # 4. 落盘
     def dump(name, obj):
@@ -165,8 +168,11 @@ def run_experiment(sc):
               for p in v] for k, v in classified.items()})
     dump("metrics.json", metrics)
 
-    suffix = ".html" if sc["format"] == "html" else ".md"
-    (out / f"report{suffix}").write_text(report, encoding="utf-8")
+    suffix = ".pdf" if sc["format"] == "pdf" else ".md"
+    if isinstance(report, (bytes, bytearray)):
+        (out / f"report{suffix}").write_bytes(report)
+    else:
+        (out / f"report{suffix}").write_text(report, encoding="utf-8")
 
     return metrics
 

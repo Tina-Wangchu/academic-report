@@ -303,19 +303,31 @@ class TestTrends:
 
 
 # ---------------------------------------------------------------------- #
-# HTML 转换 & 保存
+# PDF 生成 & 保存
 # ---------------------------------------------------------------------- #
 
-class TestHtmlAndSave:
-    """测试 HTML 转换与文件保存"""
+class TestPdfAndSave:
+    """测试 PDF 生成与文件保存"""
 
-    def test_html_wraps_content(self, gen):
-        html = gen.generate_report([_make_paper("P1")], _make_intent(), "html")
-        assert html.strip().startswith("<!DOCTYPE html>")
-        assert "<html" in html
-        assert "P1" in html  # 内容在 HTML 内
+    def test_pdf_smoke(self, gen):
+        pdf = gen.generate_report([_make_paper("P1")], _make_intent(), "pdf")
+        assert isinstance(pdf, (bytes, bytearray))
+        assert bytes(pdf)[:5] == b"%PDF-"      # PDF magic bytes
+        assert len(pdf) > 1000                  # 非平凡大小
 
-    def test_save_report(self, gen, tmp_path):
+    def test_generate_both_returns_md_pdf_ctx(self, gen):
+        md, pdf, ctx = gen.generate_both([_make_paper("P1")], _make_intent())
+        assert md and "P1" in md
+        assert isinstance(pdf, (bytes, bytearray))
+        assert bytes(pdf)[:5] == b"%PDF-"
+
+    def test_save_pdf(self, gen, tmp_path):
+        pdf = gen.generate_report([_make_paper("P1")], _make_intent(), "pdf")
+        out = gen.save_pdf(bytes(pdf), str(tmp_path / "report.pdf"))
+        assert out.exists()
+        assert out.read_bytes()[:5] == b"%PDF-"
+
+    def test_save_report_markdown(self, gen, tmp_path):
         report = gen.generate_report([_make_paper("P1")], _make_intent())
         out = gen.save_report(report, str(tmp_path / "report.md"))
         assert out.exists()

@@ -15,7 +15,7 @@
 | [paper_filter_implementation_detail.md](paper_filter_implementation_detail.md) | `paper_filter.py` | 优先级评分、质量过滤、热点聚类（≥2 收敛 + topic_hint 相关性）、时间安全网 |
 | [paper_analyzer_implementation_detail.md](paper_analyzer_implementation_detail.md) | `paper_analyzer.py` | 结构化提取、APA 7th、方向级整体分析、奠基论文（S2 References API + 离线回退）、AbstractSummarizer 分层浓缩 |
 | [llm_analyzer_implementation_detail.md](llm_analyzer_implementation_detail.md) | `llm_analyzer.py` | 四要素 LLM 生成式分析（智谱 GLM Anthropic 兼容端点）、分层回退（LLM→规则）、按 DOI/title/language 缓存、全文增强 |
-| [report_generator_implementation_detail.md](report_generator_implementation_detail.md) | `report_generator.py` | 四段式 MD/HTML 报告、双语骨架、热点分组渲染、四要素摘录、趋势语料派生 |
+| [report_generator_implementation_detail.md](report_generator_implementation_detail.md) | `report_generator.py` | 四段式 MD/PDF 报告、双语骨架、热点分组渲染、四要素摘录、趋势语料派生 |
 | [email_sender_implementation_detail.md](email_sender_implementation_detail.md) | `email_sender.py` | SMTP/SSL 分流、代理自动识别（直连→SOCKS 回退→本地端口探测）、重试、冷却守卫、发送日志 |
 
 ## 与其它文档的关系

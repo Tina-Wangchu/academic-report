@@ -106,24 +106,26 @@ def run_pipeline(user_input: str,
     metrics["papers_after_filter"] = len(filtered)
     metrics["hotspots"] = {k: len(v) for k, v in classified.items()}
 
-    # 4 & 5. 分析 + 报告（generate_both：_prepare 只跑一次，同时产出 MD + HTML）
+    # 4 & 5. 分析 + 报告（generate_both：_prepare 只跑一次，同时产出 MD + PDF）
     print("\n[4/6] 深度分析 + [5/6] 报告生成…")
     _t = datetime.now()
     cf = CitationFinder(max_papers_to_probe=2)
     cf.timeout = 6                      # 限奠基论文查找耗时
     analyzer = PaperAnalyzer(citation_finder=cf)
     rg = ReportGenerator(paper_filter=pf, paper_analyzer=analyzer)
-    md_text, html_text, ctx = rg.generate_both(filtered, intent)
+    md_text, pdf_bytes, ctx = rg.generate_both(filtered, intent)
     timings["analyze_report_sec"] = round((datetime.now() - _t).total_seconds(), 1)
-    print(f"     报告 {len(md_text)} 字符(MD) / {len(html_text)} 字符(HTML)")
+    pdf_info = f"{len(pdf_bytes)} 字节(PDF)" if pdf_bytes else "PDF 失败"
+    print(f"     报告 {len(md_text)} 字符(MD) / {pdf_info}")
 
-    # 保存到本次运行的「时间戳文件夹」：run_data.json + report.md + report.html
+    # 保存到本次运行的「时间戳文件夹」：run_data.json + report.md + report.pdf
     run_dir = Path(output_dir) / f"{t0:%Y-%m-%d_%H%M%S}"
     run_dir.mkdir(parents=True, exist_ok=True)
     md_path = run_dir / "report.md"
-    html_path = run_dir / "report.html"
+    pdf_path = run_dir / "report.pdf" if pdf_bytes is not None else None
     md_path.write_text(md_text, encoding="utf-8")
-    html_path.write_text(html_text, encoding="utf-8")
+    if pdf_path is not None:
+        pdf_path.write_bytes(pdf_bytes)
 
     run_data = {
         "generated_at": t0.isoformat(timespec="seconds"),
@@ -143,14 +145,20 @@ def run_pipeline(user_input: str,
     json_path = run_dir / "run_data.json"
     json_path.write_text(json.dumps(run_data, ensure_ascii=False, indent=2,
                                     default=str), encoding="utf-8")
-    print(f"     已保存到: {run_dir}/  (report.md, report.html, run_data.json)")
+    print(f"     已保存到: {run_dir}/  (report.md, report.pdf, run_data.json)")
 
-    report_path = md_path   # 邮件附件默认用 MD
+    # 邮件附件：默认 PDF（output_format=='markdown' 时附 MD）；PDF 生成失败则回退 MD
+    if output_format == "markdown":
+        report_path = md_path
+    else:
+        report_path = pdf_path if pdf_path is not None else md_path
     metrics["report_path"] = str(report_path)
+    metrics["report_format"] = ("pdf" if (report_path and report_path.suffix == ".pdf")
+                                else "markdown")
     metrics["report_chars"] = len(md_text)
     metrics["run_dir"] = str(run_dir)
     metrics["md_path"] = str(md_path)
-    metrics["html_path"] = str(html_path)
+    metrics["pdf_path"] = str(pdf_path) if pdf_path else None
     metrics["json_path"] = str(json_path)
     metrics["generated_at"] = run_data["generated_at"]
 
@@ -184,8 +192,8 @@ def main() -> int:
     parser.add_argument("--recipient", help="收件人邮箱（默认读 .env EMAIL_RECIPIENT）")
     parser.add_argument("--max-results", type=int, default=None,
                         help="每源最大结果数（默认读 .env MAX_RESULTS）")
-    parser.add_argument("--format", default=None, choices=["markdown", "html"],
-                        help="报告格式（默认读 .env OUTPUT_FORMAT）")
+    parser.add_argument("--format", default=None, choices=["markdown", "pdf"],
+                        help="报告附件格式，默认读 .env OUTPUT_FORMAT（默认 pdf）")
     parser.add_argument("--no-email", action="store_true",
                         help="本次只生成报告不发送（覆盖 .env SEND_EMAIL）")
     parser.add_argument("--output-dir", default=None, help="报告保存目录（默认读 .env OUTPUT_DIR）")

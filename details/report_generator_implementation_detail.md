@@ -11,7 +11,7 @@
 
 ## 功能说明
 
-按 [`报告格式设计.md`](../../报告格式设计.md)（**权威规范**）渲染固定**四段式**学术报告（Markdown / HTML）：
+按 [`报告格式设计.md`](../../报告格式设计.md)（**权威规范**）渲染固定**四段式**学术报告（Markdown / PDF）：
 
 ```
 标题 + 时间  →  一、报告速览  →  二、分类论文展示（热点聚类）  →  三、研究趋势
@@ -22,7 +22,7 @@
 - 📋 四段式结构 + 双时间戳（生成时间 / 涵盖时间）
 - 🧩 热点聚类展示，每热点含介绍/论文/整体分析/奠基性参考
 - 📊 研究趋势从本次论文派生（趋势 + 缺口）
-- 🔄 Markdown → HTML（套用 `templates/report_html_template.html`）
+- 🔄 Markdown → PDF（reportlab Platypus 渲染）
 
 ---
 
@@ -53,7 +53,7 @@ ReportGenerator(paper_filter?, paper_analyzer?)   # 可注入便于测试
  ├── _analyze_trends(papers, lang)                # 趋势+缺口（语料派生）
  ├── _render_markdown(ctx, intent, lang)          # 四段式 MD
  ├── _render_title / _render_hotspot_heading / _render_paper
- ├── _convert_to_html(md, intent, lang)           # MD→HTML 套模板
+ ├── _convert_to_pdf(md, intent, lang)            # MD→PDF（reportlab）
  └── _format_time_range / _format_coverage_time / _numeral
 
 模块级：
@@ -75,7 +75,7 @@ List[Paper] (+ intent)
         _generate_summary(...)                     # 速览（按热点概括）
         _analyze_trends(...)                       # 趋势+缺口（派生）
     ↓ _render_markdown → 四段式 MD
-    ↓ (html?) _convert_to_html → 套 HTML 模板
+    ↓ (pdf?) _convert_to_pdf → reportlab 渲染
 ```
 
 ---
@@ -122,11 +122,11 @@ List[Paper] (+ intent)
 
 > 2026-07-13 改：单篇块从「完整 Abstract 段」改为「四要素摘录四段」——从论文摘要中摘录对应语段，结构化呈现解决的问题/现有方案/新方案/效果及局限。单篇块**不再渲染**「研究内容 / 创新点 / 核心结论」（已并入四要素）。分析层仍内部计算这些子句供速览/整体分析复用。
 
-### 5. HTML 转换 `_convert_to_html`
+### 5. PDF 转换 `_convert_to_pdf`
 
-- `markdown` 库（`extra/tables/toc/sane_lists` 扩展）把 MD → HTML 片段。
-- 加载 `templates/report_html_template.html`（Jinja2），注入 `{{content}} / {{title}} / {{generation_time}}`。
-- 模板缺失时用内置样式兜底。
+- `_convert_to_pdf` 用 **reportlab Platypus** 把 MD 行向解析为 flowables（段落/标题/列表/分隔线等），逐行映射到 PDF 元素。
+- 中文走 reportlab 内置 CID 字体 **`STSong-Light`**（无需系统字体、无需额外字体文件）。
+- 输出 PDF 字节流，由上层 `save_pdf` 落盘；`generate_report(output_format='pdf')` 与 `generate_both` 均走此路径。
 
 ### 6. 时间格式
 
@@ -142,9 +142,8 @@ List[Paper] (+ intent)
 | `intent.language` | 驱动双语模式（默认 bilingual） |
 | `intent.start_date`/`end_date` | 标题时间范围 + 涵盖时间 |
 | `intent.research_field`/`query` | 标题领域名 |
-| `templates/report_html_template.html` | HTML 外壳与样式 |
+| `reportlab` | MD→PDF 渲染（Platypus；中文用内置 CID 字体 `STSong-Light`） |
 | `paper_filter` / `paper_analyzer` | 聚类/介绍 + 分析/奠基论文（Option B） |
-| `markdown` / `jinja2` | MD→HTML、模板渲染 |
 
 ---
 
@@ -160,14 +159,14 @@ List[Paper] (+ intent)
 | `TestPaperBlock` | 3 | 必填字段、作者>3用等、Abstract 截断、分析字段 |
 | `TestHotspotBlock` | 2 | 热点标题双语、委托的介绍/整体分析/奠基论文 |
 | `TestTrends` | 2 | 趋势非空、缺口语料派生非套话 |
-| `TestHtmlAndSave` | 2 | HTML 包裹、文件保存 |
+| `TestPdfAndSave` | 4 | PDF 生成、文件保存 |
 | `TestLabelHelper` | 3 | `_label` zh/en/bilingual |
 
 测试用 `FakeFilter`/`FakeAnalyzer` 注入，**不依赖网络/配置**。
 
 ### 端到端烟雾测试
 
-用**真实** filter+analyzer+generator 跑 3 篇样例论文，生成 MD + HTML，验证：双语两行标题、双语时间标签、双语段名/热点名、**按热点概括的速览（热点名+具体发现）**、委托的热点介绍/分析、HTML 以 `<!DOCTYPE html>` 开头。
+用**真实** filter+analyzer+generator 跑 3 篇样例论文，生成 MD + PDF，验证：双语两行标题、双语时间标签、双语段名/热点名、**按热点概括的速览（热点名+具体发现）**、委托的热点介绍/分析、PDF 以 `%PDF-` 开头。
 
 ### 运行
 
@@ -311,7 +310,7 @@ We introduce an efficient training method for latent diffusion generative models
 2. **四要素摘录（2026-07-13 改）**：`paper_analyzer.StructuredExtractor` 从摘要按句匹配信号词，摘录「解决的问题 / 现有方案 / 新方案 / 效果及局限性」四类语段（中英文；优先级 新方案→现有方案→问题→效果，互不重复；问题无显式句回退首句=背景）。摘录为规则版抽取式，不是语义级改写——深度结构化提炼仍需 LLM（Phase 3）。`AbstractSummarizer` 仍生成 `condensed_abstract`（完整去填充，≤1500 字符），供速览 `_paper_finding` 与四要素全空时的回退使用。
 3. **单篇块不单列分析字段**：`_render_paper` 不再渲染「研究内容 / 创新点 / 核心结论 / 相关研究 / 独立 Abstract 段」——其内容已并入四要素摘录。分析层仍内部计算 research_content/conclusions 子句供速览/整体分析复用。
 4. **奠基论文逐热点联网**：`find_foundational_papers` 每热点调 S2 API，热点多时较慢；已有限流 + 探查数封顶(5) + 离线回退。
-5. **MD 模板**：`report_template.md`（Jinja2）在计划中存在但未被采用（命令式渲染更易控字数/双语）；本模块用命令式 `_render_markdown`，HTML 用模板。
+5. **MD 模板**：`report_template.md`（Jinja2）在计划中存在但未被采用（命令式渲染更易控字数/双语）；本模块用命令式 `_render_markdown`，PDF 用 reportlab。
 
 ---
 

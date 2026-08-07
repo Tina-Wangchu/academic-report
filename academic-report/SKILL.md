@@ -46,7 +46,7 @@ python scripts/pipeline.py "<用户的检索请求原话>" --recipient <用户�
 
 **阶段 4 · 深度分析**　`paper_analyzer.py` + `llm_analyzer.py`　LLM 四要素分析（解决的问题 / 已有方案 / 新方案 / 效果及局限）；无摘要时自动抓全文；闭源论文标注检索链接。
 
-**阶段 5 · 报告生成**　`report_generator.py`　双语报告（Markdown / HTML），按热点分组 + 研究趋势。
+**阶段 5 · 报告生成**　`report_generator.py`　双语报告（Markdown / PDF），按热点分组 + 研究趋势。
 
 **阶段 6 · 邮件发送**　`email_sender.py`　SMTP 投递（自动识别代理：直连 → SOCKS 回退；内置重试与冷却守卫）。
 
@@ -54,7 +54,7 @@ python scripts/pipeline.py "<用户的检索请求原话>" --recipient <用户�
 **不要**自己生成报告，**不要**自己发邮件。
 
 **可选参数**（默认值均来自 `config/.env`，无需显式传）：
-`--language zh|en|bilingual`、`--time 3y|1y|1w|all`、`--max-results N`、`--format markdown|html`、`--no-email`（只生成不发送）、`--output-dir <目录>`。
+`--language zh|en|bilingual`、`--time 3y|1y|1w|all`、`--max-results N`、`--format markdown|pdf`、`--no-email`（只生成不发送）、`--output-dir <目录>`。
 
 ## 配置
 

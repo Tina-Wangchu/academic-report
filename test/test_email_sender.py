@@ -258,13 +258,19 @@ class TestCreateEmail:
         assert msg["Subject"] == "自定义主题"
 
     def test_body_contains_filename_and_format(self, tmp_path):
-        report = _write_report(tmp_path, name="myreport.html")
+        report = _write_report(tmp_path, name="myreport.pdf")
         sender = EmailSender(config_manager=FakeConfig())
-        msg = sender._create_email(report, "r@x.com", "s@x.com", None, "HTML")
+        msg = sender._create_email(report, "r@x.com", "s@x.com", None, "PDF")
         # 取 HTML 正文 part
         body = msg.get_payload()[0].get_payload(decode=True).decode("utf-8")
-        assert "myreport.html" in body
-        assert "HTML" in body
+        assert "myreport.pdf" in body
+        assert "PDF" in body
+
+    def test_format_label_by_suffix(self):
+        assert EmailSender._format_label(".md") == "Markdown"
+        assert EmailSender._format_label(".pdf") == "PDF"
+        assert EmailSender._format_label(".html") == "HTML"
+        assert EmailSender._format_label("") == "HTML"
 
 
 # ---------------------------------------------------------------------- #

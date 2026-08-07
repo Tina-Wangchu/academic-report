@@ -236,8 +236,8 @@ class ConfigManager:
         return self._env_str('DEFAULT_QUERY', 'default_query', '人工智能')
 
     def get_output_format(self) -> str:
-        """报告输出格式（OUTPUT_FORMAT / output_format）"""
-        return self._env_str('OUTPUT_FORMAT', 'output_format', 'markdown')
+        """报告附件格式（OUTPUT_FORMAT / output_format）：'pdf'（默认）或 'markdown'"""
+        return self._env_str('OUTPUT_FORMAT', 'output_format', 'pdf')
 
     def get_output_dir(self) -> str:
         """报告输出目录（OUTPUT_DIR / output_dir）"""

@@ -51,7 +51,7 @@ Academic Report 是一个**平台无关的 AI Agent 技能**（可用于 Claude�
     ↓
 论文分析器（提取元数据、分析内容、生成 APA 引用）
     ↓
-报告生成器（Markdown/HTML 报告生成与趋势分析）
+报告生成器（Markdown/PDF 报告生成与趋势分析）
     ↓
 邮件发送器（SMTP 附件投递）
 ```
@@ -68,7 +68,7 @@ Academic Report 是一个**平台无关的 AI Agent 技能**（可用于 Claude�
 - `paper_search.py` - 多源论文搜索器（arXiv、Semantic Scholar、OpenAlex；日期过滤）
 - `paper_filter.py` - 智能过滤、排序、热点聚类
 - `paper_analyzer.py` - 信息提取、四要素摘录、APA 第七版、整体分析、奠基性论文
-- `report_generator.py` - 学术报告生成器（Markdown + HTML、双语、四要素摘录、增量标签）
+- `report_generator.py` - 学术报告生成器（Markdown + PDF、双语、四要素摘录、增量标签）
 - `email_sender.py` - SMTP/SSL 邮件发送器（附件、重试、**自动检测代理：直连 → SOCKS 回退**，无论代理开关都能发邮件）
 - `pipeline.py` - 全链路编排器（搜索→报告→邮件）+ **增量分支**（`--incremental`）
 - `timestamp_manager.py` ✅ - 持久化每个主题的上次运行时间戳（`~/.hermes/academic_scholar_timestamps.json`）用于增量模式
@@ -210,11 +210,11 @@ hermes chat
 
 **阶段 2（中优先级）** - 分析和报告：
 3. `paper_analyzer.py` - 信息提取、APA 第七版格式化、相关论文查找
-4. `report_generator.py` - Markdown 生成、HTML 转换、趋势分析、模板渲染
+4. `report_generator.py` - Markdown 生成、PDF 转换（reportlab）、趋势分析
 
 **阶段 3（低优先级）** - 交付和测试：
 5. `email_sender.py` - SMTP 集成及重试逻辑
-6. `templates/` - 创建 report_template.md 和 report_html_template.html
+6. `templates/` - 创建 report_template.md（HTML 模板已移除，PDF 现由 reportlab 渲染）
 
 ## 数据源集成
 
@@ -238,7 +238,7 @@ hermes chat
 
 ## 报告结构
 
-生成的报告遵循 `docs/报告格式设计.md` 的规范（双语中/英，**权威**）。`report_generator.py` 模块 5 和 `templates/report_template.md` / `report_html_template.html` 必须符合此规范。结构：
+生成的报告遵循 `docs/报告格式设计.md` 的规范（双语中/英，**权威**）。`report_generator.py` 模块 5 和 `templates/report_template.md` 必须符合此规范（PDF 由 reportlab 渲染，不再使用 HTML 模板）。结构：
 
 1. **标题 + 时间** — `{time_range} {field/topic} 报告`（例如，`2023-2025 统计学研究报告`）；小字行显示**报告生成时间**和**报告覆盖时间**（论文发表范围从 `intent.start_date` 到 `end_date`）
 2. **一、报告速览** — **按热点**总结（非单篇）：列出报告覆盖的热点 + 每个热点的具体发现（代表性论文的结果/结论）；不要列出每篇论文标题

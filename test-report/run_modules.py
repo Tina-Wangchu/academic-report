@@ -198,22 +198,22 @@ def _report():
     analyzer = PaperAnalyzer(citation_finder=cf)
     rg = ReportGenerator(paper_filter=pf, paper_analyzer=analyzer)
     md = rg.generate_report(filtered, intent, "markdown")
-    html = rg.generate_report(filtered, intent, "html")
-    return md, html
+    pdf = rg.generate_report(filtered, intent, "pdf")
+    return md, pdf
 
 
-(md, html), dt = step("report_generator", _report)
+(md, pdf), dt = step("report_generator", _report)
 if md is not None:
     (OUT / "05_report.md").write_text(md, encoding="utf-8")
-    (OUT / "05_report.html").write_text(html, encoding="utf-8")
+    (OUT / "05_report.pdf").write_bytes(pdf)
     save("05_report_meta.json", {
-        "_module": "report_generator.ReportGenerator.generate_report() -> str",
+        "_module": "report_generator.ReportGenerator.generate_report() -> str|bytes",
         "_elapsed_sec": dt,
         "markdown_chars": len(md),
-        "html_chars": len(html),
-        "saved_files": ["05_report.md", "05_report.html"],
+        "pdf_bytes": len(pdf),
+        "saved_files": ["05_report.md", "05_report.pdf"],
     })
-    print(f"   报告 {len(md)} 字符(MD) / {len(html)} 字符(HTML)")
+    print(f"   报告 {len(md)} 字符(MD) / {len(pdf)} 字节(PDF)")
 
 # =========================================================================
 print("\n" + "=" * 60)
@@ -282,7 +282,7 @@ lines += ["\n## 结果文件\n",
           "- `02_search.json` Paper 列表 + 全部字段名",
           "- `03_filter.json` 筛选/热点聚类",
           "- `04_analysis.json` 四要素样本 + 研究方向",
-          "- `05_report.md` / `05_report.html` 生成的报告",
+          "- `05_report.md` / `05_report.pdf` 生成的报告",
           "- `05_report_meta.json` 报告元信息",
           "- `06_email_test.json` SMTP 测试",
           "- `summary.json` 机器可读汇总"]

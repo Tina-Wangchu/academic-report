@@ -57,9 +57,9 @@ SCENARIOS = [
         "time": "3y", "filters": {}, "max": 10, "format": "markdown",
     },
     {
-        "id": "E9", "desc": "HTML输出",
+        "id": "E9", "desc": "PDF输出",
         "query": "machine learning", "field": "机器学习", "lang": "bilingual",
-        "time": "3y", "filters": {}, "max": 10, "format": "html",
+        "time": "3y", "filters": {}, "max": 10, "format": "pdf",
     },
     {
         "id": "E10", "desc": "宽泛多热点",

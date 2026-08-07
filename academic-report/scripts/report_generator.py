@@ -1,7 +1,7 @@
 """
 学术报告生成模块（模块5 / Module 5）
 
-按 报告格式设计.md（权威规范）渲染固定四段式学术报告（MD / HTML）：
+按 报告格式设计.md（权威规范）渲染固定四段式学术报告（MD / PDF）：
   标题 + 时间  →  一、报告速览  →  二、分类论文展示（热点聚类）  →  三、研究趋势
 
 实现要点（对照权威规范，已修正计划代码的差异）：
@@ -14,20 +14,52 @@
      analyzer.StructuredExtractor 从摘要中抽取语段；四要素全空时回退完整 Abstract。
   7. Option B：热点介绍/整体分析/奠基论文**委托** paper_filter 与 paper_analyzer，不再自带。
 
-依赖：paper_filter.PaperFilter、paper_analyzer.PaperAnalyzer、utils、markdown、jinja2。
+依赖：paper_filter.PaperFilter、paper_analyzer.PaperAnalyzer、utils、reportlab（PDF）。
 """
 
 from __future__ import annotations
 
+import io
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
-from jinja2 import Template
-import markdown
+from typing import Dict, List, Optional, Tuple, Union
 
 from utils import Paper, SearchIntent, format_apa_citation
+
+# reportlab 懒加载（纯 Python wheel，无系统依赖；中文走 reportlab 内置 CID 字体
+# STSong-Light，无需 .ttf 文件、无需系统字体）。未安装时 _HAS_REPORTLAB=False，
+# _convert_to_pdf 抛 RuntimeError，由 generate_both 捕获后回退仅输出 MD。
+PDF_FONT_NAME = "STSong-Light"
+_HAS_REPORTLAB = True
+try:  # pragma: no cover - 仅在 reportlab 未安装时走此分支
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, HRFlowable, Table, TableStyle,
+        KeepTogether,
+    )
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+except ImportError:  # pragma: no cover
+    _HAS_REPORTLAB = False
+
+_PDF_FONTS_READY = False
+
+
+def _ensure_pdf_fonts() -> None:
+    """注册 CID 字体 STSong-Light（幂等；重复注册无害）。"""
+    global _PDF_FONTS_READY
+    if _PDF_FONTS_READY or not _HAS_REPORTLAB:
+        return
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont(PDF_FONT_NAME))
+    except Exception:
+        pass  # 已注册 / 不可用：交由渲染阶段处理
+    _PDF_FONTS_READY = True
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +115,7 @@ def _label(key: str, lang: str) -> str:
 
 
 class ReportGenerator:
-    """学术报告生成器（MD/HTML）"""
+    """学术报告生成器（MD/PDF）"""
 
     def __init__(self, paper_filter=None, paper_analyzer=None):
         """
@@ -102,14 +134,17 @@ class ReportGenerator:
     # ----------------------------- 公共入口 ---------------------------- #
 
     def generate_report(self, papers: List[Paper], intent: SearchIntent,
-                        output_format: str = "markdown") -> str:
+                        output_format: str = "markdown") -> Union[str, bytes]:
         """
         生成学术报告。
 
         Args:
             papers: 论文列表（建议先经 paper_filter 筛选排序）
             intent: 搜索意图（提供 research_field / language / 时间范围）
-            output_format: 'markdown' 或 'html'
+            output_format: 'markdown'（返回 str）或 'pdf'（返回 bytes）
+
+        Returns:
+            markdown 模式返回 MD 字符串；pdf 模式返回 PDF 二进制（bytes）。
         """
         lang = (intent.language or "bilingual").lower()
         if lang not in ("zh", "en", "bilingual"):
@@ -122,9 +157,9 @@ class ReportGenerator:
         md = self._render_markdown(ctx, intent, lang)
 
         if output_format == "markdown":
-            report = md
-        elif output_format == "html":
-            report = self._convert_to_html(md, intent, lang)
+            report: Union[str, bytes] = md
+        elif output_format == "pdf":
+            report = self._convert_to_pdf(md, intent, lang)
         else:
             raise ValueError(f"不支持的格式: {output_format}")
 
@@ -134,29 +169,44 @@ class ReportGenerator:
     def generate_both(self, papers: List[Paper], intent: SearchIntent,
                       lang: Optional[str] = None) -> tuple:
         """
-        一次生成 Markdown + HTML，共享同一次 _prepare（避免重复跑 LLM 四要素 /
+        一次生成 Markdown + PDF，共享同一次 _prepare（避免重复跑 LLM 四要素 /
         研究方向 / 奠基论文查找）。供 pipeline 每次运行同时产出两份报告时调用。
 
         Returns:
-            (markdown_text, html_text, ctx) —— ctx 含 papers/classified/trends 等，
-            供调用方写运行日志 run_data.json，无需重算。
+            (markdown_text, pdf_bytes|None, ctx) —— PDF 生成失败时 pdf_bytes 为 None
+            （仅回退输出 MD，不抛异常）；ctx 含 papers/classified/trends 等，供调用方
+            写运行日志 run_data.json，无需重算。
         """
         lang = (lang or intent.language or "bilingual").lower()
         if lang not in ("zh", "en", "bilingual"):
             lang = "bilingual"
-        logger.info("生成 MD+HTML 报告（%s），含 %d 篇论文", lang, len(papers))
+        logger.info("生成 MD+PDF 报告（%s），含 %d 篇论文", lang, len(papers))
         ctx = self._prepare(papers, intent, lang)
         md = self._render_markdown(ctx, intent, lang)
-        html = self._convert_to_html(md, intent, lang)
-        logger.info("报告生成完成（MD %d 字符 / HTML %d 字符）", len(md), len(html))
-        return md, html, ctx
+        try:
+            pdf = self._convert_to_pdf(md, intent, lang)
+        except Exception as e:
+            logger.error("PDF 生成失败，回退仅输出 Markdown: %s", e)
+            pdf = None
+        logger.info("报告生成完成（MD %d 字符%s）",
+                    len(md),
+                    f" / PDF {len(pdf)} 字节" if pdf else " / PDF 失败")
+        return md, pdf, ctx
 
     def save_report(self, report: str, output_path: str) -> Path:
-        """保存报告到文件，返回文件路径"""
+        """保存 Markdown 报告到文件，返回文件路径"""
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(report, encoding="utf-8")
         logger.info("报告已保存: %s", out)
+        return out
+
+    def save_pdf(self, pdf_bytes: bytes, output_path: str) -> Path:
+        """保存 PDF 二进制报告到文件，返回文件路径"""
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(pdf_bytes)
+        logger.info("PDF 报告已保存: %s", out)
         return out
 
     # ----------------------------- 数据准备 ---------------------------- #
@@ -496,36 +546,255 @@ class ReportGenerator:
         out.append("")
         return out
 
-    # ----------------------------- HTML 转换 --------------------------- #
+    # ----------------------------- PDF 生成 ---------------------------- #
 
-    def _convert_to_html(self, md_text: str, intent: SearchIntent,
-                         lang: str) -> str:
-        """Markdown → HTML，套用 HTML 模板；模板缺失则用内置样式包裹"""
-        title_field = intent.research_field or intent.query or "学术报告"
+    # 配色沿用原 HTML 模板（视觉连续）
+    _C_PRIMARY = "#3498db"   # 主色：标题下划线 / 左蓝条 / 引用左条
+    _C_H1 = "#2c3e50"        # H1 深石板蓝
+    _C_H2 = "#34495e"        # H2 石板蓝
+    _C_TEXT = "#333333"      # 正文
+    _C_META = "#7f8c8d"      # 元信息 / 页眉页脚 灰
+    _C_QUOTE = "#555555"     # 引用灰
+    _C_BG_QUOTE = "#f8f9fa"  # 引用浅底
+    _C_HR = "#ecf0f1"        # 细分隔线
+
+    def _pdf_styles(self) -> Dict[str, "ParagraphStyle"]:
+        """构建 PDF 段落样式集（全部 wordWrap=CJK，否则长中文行溢出右边距）"""
+        common = dict(fontName=PDF_FONT_NAME, wordWrap="CJK")
+        return {
+            "h1": ParagraphStyle("h1", **common, fontSize=20, leading=26,
+                                 textColor=colors.HexColor(self._C_H1),
+                                 spaceBefore=4, spaceAfter=4),
+            "h2": ParagraphStyle("h2", **common, fontSize=16, leading=22,
+                                 textColor=colors.HexColor(self._C_H2),
+                                 spaceBefore=18, spaceAfter=10),
+            "h3": ParagraphStyle("h3", **common, fontSize=13, leading=18,
+                                 textColor=colors.HexColor(self._C_H1),
+                                 spaceBefore=14, spaceAfter=6),
+            "h4": ParagraphStyle("h4", **common, fontSize=11.5, leading=16,
+                                 textColor=colors.HexColor(self._C_H2),
+                                 spaceBefore=12, spaceAfter=4),
+            "body": ParagraphStyle("body", **common, fontSize=10.5, leading=17,
+                                   textColor=colors.HexColor(self._C_TEXT),
+                                   spaceAfter=6),
+            "meta": ParagraphStyle("meta", **common, fontSize=9, leading=13,
+                                   textColor=colors.HexColor(self._C_META),
+                                   spaceAfter=2),
+            "quote": ParagraphStyle("quote", **common, fontSize=9.5, leading=15,
+                                    textColor=colors.HexColor(self._C_QUOTE)),
+            "bullet": ParagraphStyle("bullet", **common, fontSize=10.5,
+                                     leading=16,
+                                     textColor=colors.HexColor(self._C_TEXT),
+                                     leftIndent=16, bulletIndent=3,
+                                     spaceAfter=2),
+            "bullet2": ParagraphStyle("bullet2", **common, fontSize=10.5,
+                                      leading=16,
+                                      textColor=colors.HexColor(self._C_TEXT),
+                                      leftIndent=32, bulletIndent=19,
+                                      spaceAfter=2),
+        }
+
+    @staticmethod
+    def _format_inline_md(text: str) -> str:
+        """
+        行内 Markdown → reportlab Paragraph mini-markup：先转义 &<>，再
+        **bold** → <b>、*italic* → <i>、`code` → <font face=Courier>（粗体先于
+        斜体，确保 ** 被先消耗）。
+        """
+        if not text:
+            return ""
+        out = (text.replace("&", "&amp;").replace("<", "&lt;")
+               .replace(">", "&gt;"))
+        out = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
+        out = re.sub(r"(?<!\*)\*([^*\n]+?)\*(?!\*)", r"<i>\1</i>", out)
+        out = re.sub(r"`([^`]+?)`", r'<font face="Courier">\1</font>', out)
+        return out
+
+    def _barred(self, flowable, content_width: float,
+                bg: Optional[str] = None) -> "Table":
+        """给 flowable 加左侧蓝条（+ 可选浅底），模拟 HTML 的 border-left。"""
+        tbl = Table([[flowable]], colWidths=[content_width])
+        style = [
+            ("LINEBEFORE", (0, 0), (0, -1), 3,
+             colors.HexColor(self._C_PRIMARY)),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
+        if bg:
+            style.append(("BACKGROUND", (0, 0), (-1, -1),
+                          colors.HexColor(bg)))
+        tbl.setStyle(TableStyle(style))
+        return tbl
+
+    def _on_page(self, title: str):
+        """页眉（报告标题，首页略避免与正文 H1 重复）/ 页脚（页码）回调"""
+        def _draw(canvas, doc):
+            canvas.saveState()
+            canvas.setFont(PDF_FONT_NAME, 9)
+            canvas.setFillColor(colors.HexColor(self._C_META))
+            canvas.drawRightString(
+                A4[0] - 2 * cm, 1.2 * cm,
+                f"第 {doc.page} 页 / Page {doc.page}")
+            if doc.page > 1:
+                canvas.setFont(PDF_FONT_NAME, 8)
+                canvas.drawString(2 * cm, A4[1] - 1.2 * cm, title)
+            canvas.restoreState()
+        return _draw
+
+    def _convert_to_pdf(self, md_text: str, intent: SearchIntent,
+                        lang: str) -> bytes:
+        """
+        Markdown → PDF（reportlab Platypus）。行向解析 _render_markdown 产出的
+        固定 MD 子集（标题 / `-` 列表 / `>` 引用 / `---` / 行内粗斜体），渲染为
+        学术风格 PDF；每篇论文块（`#### ` 到下一个 `---`）用 KeepTogether 尽量
+        不跨页。依赖 reportlab；未安装时抛 RuntimeError（由 generate_both 捕获回退）。
+        """
+        if not _HAS_REPORTLAB:
+            raise RuntimeError("reportlab 未安装，无法生成 PDF")
+        _ensure_pdf_fonts()
+
+        title_field = intent.research_field or intent.query or "学术研究"
         time_range = self._format_time_range(intent)
         prefix = f"{time_range} " if time_range else ""
         title = f"{prefix}{title_field} 报告 / Report"
 
-        md = markdown.Markdown(extensions=["extra", "tables", "toc", "sane_lists"])
-        html_body = md.convert(md_text)
+        left = right = top = bottom = 2 * cm
+        content_width = A4[0] - left - right
+        styles = self._pdf_styles()
+        primary = colors.HexColor(self._C_PRIMARY)
 
-        template_path = self.skill_dir / "templates" / "report_html_template.html"
-        if template_path.exists():
-            tmpl = Template(template_path.read_text(encoding="utf-8"))
-            return tmpl.render(
-                content=html_body,
-                title=title,
-                generation_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            )
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=left, rightMargin=right,
+            topMargin=top, bottomMargin=bottom,
+            title=title, author="Academic Report")
+        story: List = []
 
-        # 内置兜底样式
-        return (
-            "<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'>"
-            f"<title>{title}</title></head><body>"
-            f"<main style='max-width:900px;margin:0 auto;padding:20px;"
-            "font-family:sans-serif;line-height:1.6;'>"
-            f"{html_body}</main></body></html>"
-        )
+        # ---- 行向 walker ----
+        lines = md_text.split("\n")
+        n = len(lines)
+        i = 0
+
+        para_buf: List[str] = []
+        quote_buf: List[str] = []
+        list_items: List[Tuple[int, str]] = []
+        paper_buf: List = []   # 当前论文块 flowables（#### 到下一个 ---）
+        in_paper = False
+
+        def emit(flowable):
+            """路由：论文块内累积（待 KeepTogether），否则直接进 story"""
+            if in_paper:
+                paper_buf.append(flowable)
+            else:
+                story.append(flowable)
+
+        def flush_para():
+            nonlocal para_buf
+            if para_buf:
+                emit(Paragraph(self._format_inline_md(" ".join(para_buf)),
+                               styles["body"]))
+                para_buf = []
+
+        def flush_quote():
+            nonlocal quote_buf
+            if quote_buf:
+                text = " ".join(self._format_inline_md(ln) for ln in quote_buf)
+                emit(self._barred(Paragraph(text, styles["quote"]),
+                                  content_width, bg=self._C_BG_QUOTE))
+                quote_buf = []
+
+        def flush_list():
+            nonlocal list_items
+            for depth, text in list_items:
+                st = styles["bullet2"] if depth >= 1 else styles["bullet"]
+                emit(Paragraph(self._format_inline_md(text), st,
+                               bulletText="•"))
+            list_items = []
+
+        def flush_all():
+            flush_list(); flush_quote(); flush_para()
+
+        def flush_paper():
+            nonlocal paper_buf, in_paper
+            if in_paper and paper_buf:
+                # 整篇论文尽量不跨页；过长则 reportlab 自动断页
+                story.append(KeepTogether(paper_buf))
+            paper_buf = []
+            in_paper = False
+
+        while i < n:
+            stripped = lines[i].strip()
+
+            # 水平分隔线 / 论文块结束边界
+            if re.match(r"^-{3,}\s*$", stripped):
+                flush_all()
+                flush_paper()
+                story.append(HRFlowable(width="100%", thickness=0.5,
+                                        color=colors.HexColor(self._C_HR),
+                                        spaceBefore=10, spaceAfter=10))
+                i += 1
+                continue
+
+            m4 = re.match(r"^####\s+(.*)$", stripped)
+            m3 = re.match(r"^###\s+(.*)$", stripped)
+            m2 = re.match(r"^##\s+(.*)$", stripped)
+            m1 = re.match(r"^#\s+(.*)$", stripped)
+
+            if m4:                       # 单篇论文块开始
+                flush_all(); flush_paper()
+                in_paper = True
+                emit(Paragraph(self._format_inline_md(m4.group(1)),
+                               styles["h4"]))
+            elif m3:
+                flush_all(); flush_paper()
+                emit(Paragraph(self._format_inline_md(m3.group(1)),
+                               styles["h3"]))
+            elif m2:
+                flush_all(); flush_paper()
+                emit(self._barred(
+                    Paragraph(self._format_inline_md(m2.group(1)),
+                              styles["h2"]), content_width))
+            elif m1:                     # 标题（双语：两行连续 H1 合并）
+                flush_all(); flush_paper()
+                j = i + 1
+                if j < n and re.match(r"^#\s+", lines[j].strip()):
+                    second = re.match(r"^#\s+(.*)$",
+                                      lines[j].strip()).group(1)
+                    merged = (self._format_inline_md(m1.group(1)) + "<br/>"
+                              + self._format_inline_md(second))
+                    story.append(Paragraph(merged, styles["h1"]))
+                    i = j  # 跳过第二行（循环末尾再 +1）
+                else:
+                    story.append(Paragraph(
+                        self._format_inline_md(m1.group(1)), styles["h1"]))
+                story.append(HRFlowable(width="100%", thickness=2,
+                                        color=primary,
+                                        spaceBefore=2, spaceAfter=14))
+            elif stripped == "":
+                flush_all()
+            elif stripped.startswith(">"):
+                flush_list(); flush_para()
+                quote_buf.append(stripped.lstrip("> ").rstrip())
+            else:
+                mb = re.match(r"^(\s*)[-*]\s+(.*)$", lines[i])
+                if mb:
+                    flush_quote(); flush_para()
+                    depth = 1 if len(mb.group(1)) >= 2 else 0
+                    list_items.append((depth, mb.group(2)))
+                else:
+                    flush_list(); flush_quote()
+                    para_buf.append(stripped)
+            i += 1
+
+        flush_all()
+        flush_paper()
+
+        doc.build(story, onFirstPage=self._on_page(title),
+                  onLaterPages=self._on_page(title))
+        return buf.getvalue()
 
     # ----------------------------- 工具 -------------------------------- #
 
@@ -574,7 +843,7 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="论文 JSON 文件")
     parser.add_argument("--output", required=True, help="输出报告路径")
     parser.add_argument("--format", default="markdown",
-                        choices=["markdown", "html"])
+                        choices=["markdown", "pdf"])
     parser.add_argument("--intent", help="搜索意图 JSON 文件")
     args = parser.parse_args()
 
@@ -592,7 +861,10 @@ def main() -> None:
 
     gen = ReportGenerator()
     report = gen.generate_report(papers, intent, args.format)
-    gen.save_report(report, args.output)
+    if isinstance(report, (bytes, bytearray)):
+        gen.save_pdf(bytes(report), args.output)
+    else:
+        gen.save_report(report, args.output)
     print(f"报告已生成: {args.output}")
 
 
