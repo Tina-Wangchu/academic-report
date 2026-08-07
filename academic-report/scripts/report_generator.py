@@ -40,7 +40,7 @@ try:  # pragma: no cover - 仅在 reportlab 未安装时走此分支
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, HRFlowable, Table, TableStyle,
-        KeepTogether,
+        CondPageBreak,
     )
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
@@ -567,16 +567,16 @@ class ReportGenerator:
                                  spaceBefore=4, spaceAfter=4),
             "h2": ParagraphStyle("h2", **common, fontSize=16, leading=22,
                                  textColor=colors.HexColor(self._C_H2),
-                                 spaceBefore=18, spaceAfter=10),
+                                 spaceBefore=14, spaceAfter=8),
             "h3": ParagraphStyle("h3", **common, fontSize=13, leading=18,
                                  textColor=colors.HexColor(self._C_H1),
-                                 spaceBefore=14, spaceAfter=6),
+                                 spaceBefore=10, spaceAfter=5),
             "h4": ParagraphStyle("h4", **common, fontSize=11.5, leading=16,
                                  textColor=colors.HexColor(self._C_H2),
-                                 spaceBefore=12, spaceAfter=4),
-            "body": ParagraphStyle("body", **common, fontSize=10.5, leading=17,
+                                 spaceBefore=9, spaceAfter=3),
+            "body": ParagraphStyle("body", **common, fontSize=10.5, leading=16,
                                    textColor=colors.HexColor(self._C_TEXT),
-                                   spaceAfter=6),
+                                   spaceAfter=5),
             "meta": ParagraphStyle("meta", **common, fontSize=9, leading=13,
                                    textColor=colors.HexColor(self._C_META),
                                    spaceAfter=2),
@@ -648,8 +648,9 @@ class ReportGenerator:
         """
         Markdown → PDF（reportlab Platypus）。行向解析 _render_markdown 产出的
         固定 MD 子集（标题 / `-` 列表 / `>` 引用 / `---` / 行内粗斜体），渲染为
-        学术风格 PDF；每篇论文块（`#### ` 到下一个 `---`）用 KeepTogether 尽量
-        不跨页。依赖 reportlab；未安装时抛 RuntimeError（由 generate_both 捕获回退）。
+        学术风格 PDF。正文自然跨页；各标题前用 CondPageBreak 避免标题孤悬页底
+        （不做整块 KeepTogether——否则标题后易出现大片空白）。依赖 reportlab；
+        未安装时抛 RuntimeError（由 generate_both 捕获回退）。
         """
         if not _HAS_REPORTLAB:
             raise RuntimeError("reportlab 未安装，无法生成 PDF")
@@ -681,60 +682,42 @@ class ReportGenerator:
         para_buf: List[str] = []
         quote_buf: List[str] = []
         list_items: List[Tuple[int, str]] = []
-        paper_buf: List = []   # 当前论文块 flowables（#### 到下一个 ---）
-        in_paper = False
-
-        def emit(flowable):
-            """路由：论文块内累积（待 KeepTogether），否则直接进 story"""
-            if in_paper:
-                paper_buf.append(flowable)
-            else:
-                story.append(flowable)
 
         def flush_para():
             nonlocal para_buf
             if para_buf:
-                emit(Paragraph(self._format_inline_md(" ".join(para_buf)),
-                               styles["body"]))
+                story.append(Paragraph(self._format_inline_md(" ".join(para_buf)),
+                                       styles["body"]))
                 para_buf = []
 
         def flush_quote():
             nonlocal quote_buf
             if quote_buf:
                 text = " ".join(self._format_inline_md(ln) for ln in quote_buf)
-                emit(self._barred(Paragraph(text, styles["quote"]),
-                                  content_width, bg=self._C_BG_QUOTE))
+                story.append(self._barred(Paragraph(text, styles["quote"]),
+                                          content_width, bg=self._C_BG_QUOTE))
                 quote_buf = []
 
         def flush_list():
             nonlocal list_items
             for depth, text in list_items:
                 st = styles["bullet2"] if depth >= 1 else styles["bullet"]
-                emit(Paragraph(self._format_inline_md(text), st,
-                               bulletText="•"))
+                story.append(Paragraph(self._format_inline_md(text), st,
+                                       bulletText="•"))
             list_items = []
 
         def flush_all():
             flush_list(); flush_quote(); flush_para()
 
-        def flush_paper():
-            nonlocal paper_buf, in_paper
-            if in_paper and paper_buf:
-                # 整篇论文尽量不跨页；过长则 reportlab 自动断页
-                story.append(KeepTogether(paper_buf))
-            paper_buf = []
-            in_paper = False
-
         while i < n:
             stripped = lines[i].strip()
 
-            # 水平分隔线 / 论文块结束边界
+            # 水平分隔线
             if re.match(r"^-{3,}\s*$", stripped):
                 flush_all()
-                flush_paper()
                 story.append(HRFlowable(width="100%", thickness=0.5,
                                         color=colors.HexColor(self._C_HR),
-                                        spaceBefore=10, spaceAfter=10))
+                                        spaceBefore=8, spaceAfter=8))
                 i += 1
                 continue
 
@@ -743,22 +726,24 @@ class ReportGenerator:
             m2 = re.match(r"^##\s+(.*)$", stripped)
             m1 = re.match(r"^#\s+(.*)$", stripped)
 
-            if m4:                       # 单篇论文块开始
-                flush_all(); flush_paper()
-                in_paper = True
-                emit(Paragraph(self._format_inline_md(m4.group(1)),
-                               styles["h4"]))
-            elif m3:
-                flush_all(); flush_paper()
-                emit(Paragraph(self._format_inline_md(m3.group(1)),
-                               styles["h3"]))
-            elif m2:
-                flush_all(); flush_paper()
-                emit(self._barred(
+            if m4:                       # 单篇论文标题
+                flush_all()
+                story.append(CondPageBreak(2.5 * cm))   # 避免标题孤悬页底
+                story.append(Paragraph(self._format_inline_md(m4.group(1)),
+                                       styles["h4"]))
+            elif m3:                     # 热点 / 子小节标题
+                flush_all()
+                story.append(CondPageBreak(3.5 * cm))   # 标题+引言同页，避免标题后大片空白
+                story.append(Paragraph(self._format_inline_md(m3.group(1)),
+                                       styles["h3"]))
+            elif m2:                     # 一级章节标题
+                flush_all()
+                story.append(CondPageBreak(4 * cm))
+                story.append(self._barred(
                     Paragraph(self._format_inline_md(m2.group(1)),
                               styles["h2"]), content_width))
-            elif m1:                     # 标题（双语：两行连续 H1 合并）
-                flush_all(); flush_paper()
+            elif m1:                     # 报告标题（双语：两行连续 H1 合并）
+                flush_all()
                 j = i + 1
                 if j < n and re.match(r"^#\s+", lines[j].strip()):
                     second = re.match(r"^#\s+(.*)$",
@@ -772,7 +757,7 @@ class ReportGenerator:
                         self._format_inline_md(m1.group(1)), styles["h1"]))
                 story.append(HRFlowable(width="100%", thickness=2,
                                         color=primary,
-                                        spaceBefore=2, spaceAfter=14))
+                                        spaceBefore=2, spaceAfter=12))
             elif stripped == "":
                 flush_all()
             elif stripped.startswith(">"):
@@ -790,7 +775,6 @@ class ReportGenerator:
             i += 1
 
         flush_all()
-        flush_paper()
 
         doc.build(story, onFirstPage=self._on_page(title),
                   onLaterPages=self._on_page(title))
