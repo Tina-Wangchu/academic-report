@@ -508,7 +508,13 @@ class ReportGenerator:
         """单篇论文块：基本信息 + 四要素摘录（从摘要抽取）+ APA"""
         et_al = f"{_label('et_al', lang)}" if len(paper.authors) > 3 else ""
         authors_str = ", ".join(paper.authors[:3]) + (f" {et_al}" if et_al else "")
-        out: List[str] = [f"#### {idx}. {paper.title}", ""]
+        # 标题：双语/zh 模式且已有中文翻译时，显示「英文（中文）」；en 模式仅英文
+        title_zh = (getattr(paper, "title_zh", "") or "").strip()
+        if lang in ("bilingual", "zh") and title_zh:
+            title_display = f"{paper.title}（{title_zh}）"
+        else:
+            title_display = paper.title
+        out: List[str] = [f"#### {idx}. {title_display}", ""]
 
         # 基本信息（发表时间独立字段，§5.2）
         out.append(f"- **{_label('authors', lang)}**: {authors_str}")

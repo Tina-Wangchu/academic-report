@@ -37,6 +37,7 @@ class Paper:
     new_approach: str = ""            # 新方案
     results_limitations: str = ""     # 效果及局限性
     analysis_source: str = ""         # 四要素来源："llm" | "rule"（便于评测/调试）
+    title_zh: str = ""                # 中文标题翻译（四要素 LLM 同步生成；双语/zh 模式显示用）
     related_papers: List[str] = None  # 相关论文
     url: str = ""
     source: str = ""         # 数据来源

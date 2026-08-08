@@ -714,6 +714,7 @@ class PaperAnalyzer:
             paper.existing_approaches = fea["existing_approaches"]
             paper.new_approach = fea["new_approach"]
             paper.results_limitations = fea["results_limitations"]
+            paper.title_zh = fea.get("title_zh", "")
             paper.analysis_source = fea.get("analysis_source", "")
         return paper
 

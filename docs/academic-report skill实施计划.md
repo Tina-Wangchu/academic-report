@@ -13,6 +13,7 @@
 >
 > - **后续 ✅ 英文查询修复（2026-08-08）**：`_to_english_query` 术语表补「人工智能」等常见词 + 翻译后剥离剩余中文 → 搜索查询恒为英文（OpenAlex/S2 返回英文论文，报告标题全英文，匹配权威学术源预期）；`PaperSearcher.search` 去重后再过滤「标题无任何拉丁字母」的纯中文条目作兜底。
 > - **后续 ✅ 报告文本/排版质量改进（2026-08-08）**：①中英自动加空格 `_autospace_cjk_latin`（CJK↔拉丁/数字插半角空格，URL/DOI 占位保护+边界空格），`_render_markdown` 末尾统一应用；②英文用内置 **Times-Roman** 字体（注册 family，`<b>`→Times-Bold，**英文可真加粗**），中文仍 `STSong-Light`；③正文/引用两端对齐 `TA_JUSTIFY`；④URL/DOI 反引号→等宽 `Courier`；⑤速览 `_paper_finding` 去前缀（Abstract/INTRODUCTION:…）+ 句界省略号；⑥标准 Title Case（虚词 of/and/the/in 小写、缩写 AI/NLP/BERT 大写）；⑦各级标题英文加粗。**中文真加粗需捆绑 Noto Sans SC（+20MB），按决定暂不引入，见 `docs/known_issues.md`。**
+> - **后续 ✅ 论文标题中英双语（2026-08-08）**：`Paper` 新增 `title_zh`；四要素 LLM 调用（`llm_analyzer._system_prompt`/`_FIELD_KEYS`）同步产出标题中文翻译，`paper_analyzer` 回填 `paper.title_zh`；`_render_paper` 在双语/zh 模式显示「英文标题（中文翻译）」，en 模式仅英文，LLM 不可用/闭源则回退纯英文。**注意：LLM 缓存（`llm_cache_four_element.json`）中旧条目无 `title_zh` → 命中缓存的论文仍显示纯英文；如需全部翻译，删除该缓存文件后重跑（见 `docs/known_issues.md`）。**
 >
 > ⚠️ 下方原始计划保留作为各模块设计的权威参考，但其中涉及 `~/.hermes/`、`config.example.yaml`、`env.example`、Hermes frontmatter、`scheduler`/`timestamp_manager` 的内容**已过时**——一切以本变更记录为准。
 

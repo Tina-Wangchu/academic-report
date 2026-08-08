@@ -70,3 +70,25 @@ reportlab 内置的简体中文 CID 字体 `STSong-Light` **只有单一字重�
 ## 解决方向（暂未做）
 
 引入开源（OFL）中文字体 **Noto Sans SC**（Regular + Bold，静态 TTF），注册 family 后中英文都能真加粗。代价：仓库约 **+20MB**（两个字重各 ~10MB）。按用户决定，目前优先零依赖、仓库轻量，暂不引入；如后续需要中文加粗，再按此方案实施。
+
+---
+
+# 已知问题：旧缓存论文标题无中文翻译（title_zh）
+
+> **状态：设计权衡，非 bug**（2026-08-08 记录）—— LLM 四要素结果按论文+语言缓存以控成本；`title_zh` 为新增字段。
+
+## 现象
+
+`title_zh`（论文标题中文翻译）功能上线后，**已在缓存里的论文**仍显示纯英文标题（无「英文（中文）」）；只有**新论文**（缓存未命中 → 新 LLM 调用）才会带中文翻译。
+
+## 根因
+
+`academic-report/config/llm_cache_four_element.json` 缓存的是 LLM 四要素返回的 JSON。该字段新增前的旧条目不含 `title_zh`；缓存命中时直接返回旧条目，不再调 LLM，故 `title_zh` 为空。
+
+## 解决（如需全部论文都带中文标题）
+
+删除缓存文件后重跑 pipeline，所有论文将重新调 LLM、补全 `title_zh`（代价：每篇一次 LLM 调用）：
+
+```bash
+rm academic-report/config/llm_cache_four_element.json
+```

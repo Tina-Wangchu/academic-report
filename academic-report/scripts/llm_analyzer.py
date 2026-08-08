@@ -91,10 +91,12 @@ def _system_prompt(language: str = "bilingual") -> str:
             "- Output language: **bilingual** — for EACH of the four elements, write a **Chinese segment first**, "
             "then an **English segment** on a new line, both conveying the same content; 2-4 sentences per language per element.\n"
         )
-    out_lang += ('- 输出严格 JSON（且只输出 JSON）：'
-                 '{"problem":"…","existing":"…","new":"…","results":"…"}，四个键均为字符串。/ '
+    out_lang += ('- 另给 title_zh：论文标题的**中文翻译**（始终用中文，简洁准确，勿加书名号/引号）。/'
+                 'Also provide title_zh: a **Chinese translation** of the paper title (always Chinese, concise, no quotes).\n'
+                 '- 输出严格 JSON（且只输出 JSON）：'
+                 '{"problem":"…","existing":"…","new":"…","results":"…","title_zh":"…"}，键均为字符串。/ '
                  'Output strictly JSON (and only JSON): '
-                 '{"problem":"…","existing":"…","new":"…","results":"…"}, all four values strings.')
+                 '{"problem":"…","existing":"…","new":"…","results":"…","title_zh":"…"}, all values strings.')
     return base + out_lang
 
 
@@ -383,8 +385,9 @@ _KEY_ALIASES = {
     "新方案": "new_approach", "本文新方案": "new_approach",
     "results": "results_limitations", "results_limitations": "results_limitations",
     "效果": "results_limitations", "效果及局限": "results_limitations", "效果及局限性": "results_limitations",
+    "title_zh": "title_zh", "title_cn": "title_zh", "中文标题": "title_zh",
 }
-_FIELD_KEYS = ("problem", "existing_approaches", "new_approach", "results_limitations")
+_FIELD_KEYS = ("problem", "existing_approaches", "new_approach", "results_limitations", "title_zh")
 
 
 class FourElementAnalyzer:

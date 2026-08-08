@@ -212,6 +212,15 @@ class TestPaperBlock:
         assert "问题 X" in report and "现有 X" in report
         assert "新方案 X" in report and "效果 X" in report
 
+    def test_title_zh_shown_in_bilingual(self, gen):
+        """双语模式：有中文翻译时标题显示「英文（中文）」；en 模式仅英文"""
+        p = _make_paper("Deep Learning Survey", abstract="A short abstract.")
+        p.title_zh = "深度学习综述"
+        bi = gen.generate_report([p], _make_intent("bilingual"))
+        assert "Deep Learning Survey（深度学习综述）" in bi
+        en = gen.generate_report([p], _make_intent("en"))
+        assert "Deep Learning Survey" in en and "深度学习综述" not in en
+
     def test_analysis_fields_not_rendered(self, gen):
         """研究内容/创新点/核心结论 不再在单篇块渲染（已删除）"""
         p = _make_paper("P1")
