@@ -42,3 +42,6 @@ academic-report/reports/
 .claude/
 _*.py
 _*.tmp.py
+
+# 本地草稿/笔记（不提交）
+pdf修改要求
