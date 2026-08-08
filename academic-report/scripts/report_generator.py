@@ -562,18 +562,18 @@ class ReportGenerator:
         """构建 PDF 段落样式集（全部 wordWrap=CJK，否则长中文行溢出右边距）"""
         common = dict(fontName=PDF_FONT_NAME, wordWrap="CJK")
         return {
-            "h1": ParagraphStyle("h1", **common, fontSize=20, leading=26,
+            "h1": ParagraphStyle("h1", **common, fontSize=22, leading=28,
                                  textColor=colors.HexColor(self._C_H1),
                                  spaceBefore=4, spaceAfter=4),
-            "h2": ParagraphStyle("h2", **common, fontSize=16, leading=22,
+            "h2": ParagraphStyle("h2", **common, fontSize=17, leading=23,
                                  textColor=colors.HexColor(self._C_H2),
                                  spaceBefore=14, spaceAfter=8),
-            "h3": ParagraphStyle("h3", **common, fontSize=13, leading=18,
+            "h3": ParagraphStyle("h3", **common, fontSize=15, leading=21,
                                  textColor=colors.HexColor(self._C_H1),
-                                 spaceBefore=10, spaceAfter=5),
-            "h4": ParagraphStyle("h4", **common, fontSize=11.5, leading=16,
-                                 textColor=colors.HexColor(self._C_H2),
-                                 spaceBefore=9, spaceAfter=3),
+                                 spaceBefore=12, spaceAfter=6),
+            "h4": ParagraphStyle("h4", **common, fontSize=13, leading=18,
+                                 textColor=colors.HexColor(self._C_PRIMARY),
+                                 spaceBefore=10, spaceAfter=4),
             "body": ParagraphStyle("body", **common, fontSize=10.5, leading=16,
                                    textColor=colors.HexColor(self._C_TEXT),
                                    spaceAfter=5),
@@ -609,6 +609,37 @@ class ReportGenerator:
         out = re.sub(r"(?<!\*)\*([^*\n]+?)\*(?!\*)", r"<i>\1</i>", out)
         out = re.sub(r"`([^`]+?)`", r'<font face="Courier">\1</font>', out)
         return out
+
+    @staticmethod
+    def _titlecase_en(text: str) -> str:
+        """
+        标题英文单词首字母大写；已知缩写（ai→AI、nlp→NLP、bert→BERT…）全大写；
+        已有大写的词（专名/缩写）原样保留；中文与标点不动。用于各级标题（H1-H4）。
+        """
+        if not text:
+            return text
+        acronyms = {
+            "ai", "ml", "dl", "nlp", "cv", "llm", "gpt", "bert", "lstm", "gru",
+            "cnn", "rnn", "gan", "vae", "rl", "svm", "knn", "pca", "svd", "ner",
+            "qa", "vqa", "ocr", "tts", "asr", "agi", "gpu", "cpu", "tpu", "api",
+            "sdk", "cli", "gui", "pdf", "url", "doi", "http", "https", "json",
+            "xml", "sql", "iot", "os", "ui", "ux", "css", "html", "qos", "sla",
+            "ieee", "acm", "kdd", "aaai", "icml", "iclr", "cvpr", "iccv", "eccv",
+            "acl", "emnlp", "naacl", "neurips",
+        }
+
+        def cap(word: str) -> str:
+            low = word.lower()
+            if low in acronyms:                # 已知缩写 → 全大写（ai→AI）
+                return low.upper()
+            if any(c.isupper() for c in word):  # 含大写 → 缩写/专名，保留
+                return word
+            for k, c in enumerate(word):        # 全小写 → 首字母大写（中文 upper 无变化）
+                if c.isalpha():
+                    return word[:k] + c.upper() + word[k + 1:]
+            return word
+
+        return " ".join(cap(w) for w in text.split(" "))
 
     def _barred(self, flowable, content_width: float,
                 bg: Optional[str] = None) -> "Table":
@@ -726,35 +757,40 @@ class ReportGenerator:
             m2 = re.match(r"^##\s+(.*)$", stripped)
             m1 = re.match(r"^#\s+(.*)$", stripped)
 
-            if m4:                       # 单篇论文标题
+            if m4:                       # 单篇论文标题（蓝色突出 + 首字母大写）
                 flush_all()
                 story.append(CondPageBreak(2.5 * cm))   # 避免标题孤悬页底
-                story.append(Paragraph(self._format_inline_md(m4.group(1)),
-                                       styles["h4"]))
-            elif m3:                     # 热点 / 子小节标题
+                story.append(Paragraph(
+                    self._format_inline_md(self._titlecase_en(m4.group(1))),
+                    styles["h4"]))
+            elif m3:                     # 热点 / 子小节标题（放大 + 首字母大写）
                 flush_all()
                 story.append(CondPageBreak(3.5 * cm))   # 标题+引言同页，避免标题后大片空白
-                story.append(Paragraph(self._format_inline_md(m3.group(1)),
-                                       styles["h3"]))
+                story.append(Paragraph(
+                    self._format_inline_md(self._titlecase_en(m3.group(1))),
+                    styles["h3"]))
             elif m2:                     # 一级章节标题
                 flush_all()
                 story.append(CondPageBreak(4 * cm))
                 story.append(self._barred(
-                    Paragraph(self._format_inline_md(m2.group(1)),
+                    Paragraph(self._format_inline_md(self._titlecase_en(m2.group(1))),
                               styles["h2"]), content_width))
-            elif m1:                     # 报告标题（双语：两行连续 H1 合并）
+            elif m1:                     # 报告标题（双语：英文在前、中文在后）
                 flush_all()
                 j = i + 1
                 if j < n and re.match(r"^#\s+", lines[j].strip()):
                     second = re.match(r"^#\s+(.*)$",
                                       lines[j].strip()).group(1)
-                    merged = (self._format_inline_md(m1.group(1)) + "<br/>"
-                              + self._format_inline_md(second))
+                    # 先英文(second)后中文(m1)；英文单词首字母大写
+                    merged = (self._format_inline_md(self._titlecase_en(second))
+                              + "<br/>"
+                              + self._format_inline_md(self._titlecase_en(m1.group(1))))
                     story.append(Paragraph(merged, styles["h1"]))
                     i = j  # 跳过第二行（循环末尾再 +1）
                 else:
                     story.append(Paragraph(
-                        self._format_inline_md(m1.group(1)), styles["h1"]))
+                        self._format_inline_md(self._titlecase_en(m1.group(1))),
+                        styles["h1"]))
                 story.append(HRFlowable(width="100%", thickness=2,
                                         color=primary,
                                         spaceBefore=2, spaceAfter=12))
