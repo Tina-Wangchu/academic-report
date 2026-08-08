@@ -50,3 +50,23 @@ S2 源有**两个独立问题**，叠加导致 0 篇：
 ---
 
 *关联代码：`academic-report/scripts/paper_search.py`（`SemanticScholarSearcher` / `PaperSearcher.search_errors`）*
+
+---
+
+# 已知问题：中文标题/热点名无法真加粗（PDF）
+
+> **状态：按决定暂不处理**（2026-08-08 记录）—— 根因是字体限制；用户选择「只英文加粗、零依赖」。
+
+## 现象
+
+PDF 报告中，**英文**标题/标签能真加粗（Times-Bold），但**中文**标题、热点名（如「热点一：深度学习」「一、报告速览」）即使写 `**…**` 也**无加粗效果**，与正文中文视觉一致。
+
+## 根因
+
+reportlab 内置的简体中文 CID 字体 `STSong-Light` **只有单一字重（Regular），没有粗体变体**。reportlab 的 `<b>` 是通过切换到字体的 bold 家族成员实现的；`STSong-Light` 无 bold 成员 → `<b>` 对中文是 no-op。
+
+英文已通过注册 `Times-Roman` family（`bold='Times-Bold'`）让 `<b>` 生效；中文等价方案需要捆绑一个含粗体的中文字体。
+
+## 解决方向（暂未做）
+
+引入开源（OFL）中文字体 **Noto Sans SC**（Regular + Bold，静态 TTF），注册 family 后中英文都能真加粗。代价：仓库约 **+20MB**（两个字重各 ~10MB）。按用户决定，目前优先零依赖、仓库轻量，暂不引入；如后续需要中文加粗，再按此方案实施。

@@ -11,6 +11,9 @@
 > - **SMTP 实测（2026-08-03）**：用户 `config/.env` 配 QQ 邮箱（`smtp.qq.com:465` + 授权码）作发件、Gmail 作默认收件人；已实测 QQ→QQ、QQ→Gmail 真实发送成功。
 > - **后续 ✅ 报告输出 HTML→PDF（2026-08-07）**：用 reportlab（纯 Python，无系统依赖；中文走内置 CID 字体 STSong-Light）将 MD 行向解析为 Platypus flowables 生成 PDF；删除 _convert_to_html 与 templates/report_html_template.html；pipeline 默认附件改 PDF（OUTPUT_FORMAT 默认 pdf，回退 md）；email_sender 识别 .pdf（application/pdf）；requirements +reportlab、-markdown/-jinja2；文档全量同步。
 >
+> - **后续 ✅ 英文查询修复（2026-08-08）**：`_to_english_query` 术语表补「人工智能」等常见词 + 翻译后剥离剩余中文 → 搜索查询恒为英文（OpenAlex/S2 返回英文论文，报告标题全英文，匹配权威学术源预期）；`PaperSearcher.search` 去重后再过滤「标题无任何拉丁字母」的纯中文条目作兜底。
+> - **后续 ✅ 报告文本/排版质量改进（2026-08-08）**：①中英自动加空格 `_autospace_cjk_latin`（CJK↔拉丁/数字插半角空格，URL/DOI 占位保护+边界空格），`_render_markdown` 末尾统一应用；②英文用内置 **Times-Roman** 字体（注册 family，`<b>`→Times-Bold，**英文可真加粗**），中文仍 `STSong-Light`；③正文/引用两端对齐 `TA_JUSTIFY`；④URL/DOI 反引号→等宽 `Courier`；⑤速览 `_paper_finding` 去前缀（Abstract/INTRODUCTION:…）+ 句界省略号；⑥标准 Title Case（虚词 of/and/the/in 小写、缩写 AI/NLP/BERT 大写）；⑦各级标题英文加粗。**中文真加粗需捆绑 Noto Sans SC（+20MB），按决定暂不引入，见 `docs/known_issues.md`。**
+>
 > ⚠️ 下方原始计划保留作为各模块设计的权威参考，但其中涉及 `~/.hermes/`、`config.example.yaml`、`env.example`、Hermes frontmatter、`scheduler`/`timestamp_manager` 的内容**已过时**——一切以本变更记录为准。
 
 ## 项目概述

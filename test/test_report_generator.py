@@ -208,9 +208,9 @@ class TestPaperBlock:
         assert "现有方案" in report and "Existing approaches" in report
         assert "新方案" in report and "New approach" in report
         assert "效果及局限性" in report and "Results & limitations" in report
-        # 四要素值（FakeAnalyzer 设的固定值）
-        assert "问题X" in report and "现有X" in report
-        assert "新方案X" in report and "效果X" in report
+        # 四要素值（FakeAnalyzer 设的固定值；autospace 后 CJK 与 X 间有空格）
+        assert "问题 X" in report and "现有 X" in report
+        assert "新方案 X" in report and "效果 X" in report
 
     def test_analysis_fields_not_rendered(self, gen):
         """研究内容/创新点/核心结论 不再在单篇块渲染（已删除）"""
@@ -347,3 +347,33 @@ class TestLabelHelper:
 
     def test_label_bilingual(self):
         assert _label("overview", "bilingual") == "一、报告速览 / I. Report Overview"
+
+
+class TestTextHelpers:
+    """中英混排自动加空格 + 英文 Title Case"""
+
+    def test_autospace_inserts_between_cjk_and_latin(self):
+        from report_generator import ReportGenerator
+        f = ReportGenerator._autospace_cjk_latin
+        assert f("深度学习XAI") == "深度学习 XAI"
+        assert f("提升20%效率") == "提升 20%效率"   # % 非拉丁/数字，其后再插空格
+        assert f("AI驱动") == "AI 驱动"
+
+    def test_autospace_protects_url_and_doi(self):
+        from report_generator import ReportGenerator
+        f = ReportGenerator._autospace_cjk_latin
+        # URL / DOI 内部不插入空格；与 CJK 边界补空格
+        assert f("见https://example.com/abc期刊") == "见 https://example.com/abc 期刊"
+        assert f("https://example.com/abc") == "https://example.com/abc"   # 无 CJK 不变
+        assert "10.1234/foo" in f("DOI 10.1234/foo(bar)")
+
+    def test_titlecase_minor_words_lowercase(self):
+        from report_generator import ReportGenerator
+        f = ReportGenerator._titlecase_en
+        assert f("artificial intelligence in education") == "Artificial Intelligence in Education"
+        assert f("a survey on bert and gpt") == "A Survey on BERT and GPT"
+        assert f("deep learning for nlp") == "Deep Learning for NLP"
+
+    def test_titlecase_acronyms_uppercase(self):
+        from report_generator import ReportGenerator
+        assert ReportGenerator._titlecase_en("ai in healthcare") == "AI in Healthcare"

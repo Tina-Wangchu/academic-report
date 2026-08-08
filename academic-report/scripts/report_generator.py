@@ -31,12 +31,14 @@ from utils import Paper, SearchIntent, format_apa_citation
 # reportlab 懒加载（纯 Python wheel，无系统依赖；中文走 reportlab 内置 CID 字体
 # STSong-Light，无需 .ttf 文件、无需系统字体）。未安装时 _HAS_REPORTLAB=False，
 # _convert_to_pdf 抛 RuntimeError，由 generate_both 捕获后回退仅输出 MD。
-PDF_FONT_NAME = "STSong-Light"
+PDF_FONT_NAME = "STSong-Light"    # CJK 字体（reportlab 内置 CID）
+LATIN_FONT_NAME = "Times-Roman"   # 西文/英文（reportlab 内置标准字体，含 Times-Bold 粗体）
 _HAS_REPORTLAB = True
 try:  # pragma: no cover - 仅在 reportlab 未安装时走此分支
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
     from reportlab.lib import colors
+    from reportlab.lib.enums import TA_JUSTIFY
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, HRFlowable, Table, TableStyle,
@@ -44,6 +46,7 @@ try:  # pragma: no cover - 仅在 reportlab 未安装时走此分支
     )
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfbase.pdfmetrics import registerFontFamily
 except ImportError:  # pragma: no cover
     _HAS_REPORTLAB = False
 
@@ -51,7 +54,7 @@ _PDF_FONTS_READY = False
 
 
 def _ensure_pdf_fonts() -> None:
-    """注册 CID 字体 STSong-Light（幂等；重复注册无害）。"""
+    """注册 CID 字体 STSong-Light（中文）与 Times 家族（英文，含粗体）。幂等。"""
     global _PDF_FONTS_READY
     if _PDF_FONTS_READY or not _HAS_REPORTLAB:
         return
@@ -59,6 +62,14 @@ def _ensure_pdf_fonts() -> None:
         pdfmetrics.registerFont(UnicodeCIDFont(PDF_FONT_NAME))
     except Exception:
         pass  # 已注册 / 不可用：交由渲染阶段处理
+    try:
+        # Times 内置标准字体；注册 family 让 <b>/<i> 在英文 run 上 → Times-Bold/Italic
+        registerFontFamily(
+            LATIN_FONT_NAME,
+            normal=LATIN_FONT_NAME, bold="Times-Bold",
+            italic="Times-Italic", boldItalic="Times-BoldItalic")
+    except Exception:
+        pass
     _PDF_FONTS_READY = True
 
 logger = logging.getLogger(__name__)
@@ -299,19 +310,25 @@ class ReportGenerator:
     @staticmethod
     def _paper_finding(paper: Paper) -> str:
         """
-        单篇核心内容概要（速览用）：取完整摘要前 1-2 句（问题+方法），
-        回退标题。控制在约 160 字符内，不出现省略号。
+        单篇核心内容概要（速览用）：取摘要前 1-2 句；去掉常见前缀套话
+        （Abstract / INTRODUCTION: / Summary / Keywords 等，避免泄漏进速览）；
+        超出 ~160 字符则在句界截断并加省略号；回退标题。
         """
         text = (paper.condensed_abstract or paper.abstract or ""
                 ).replace("\n", " ").strip()
         if not text:
             return (paper.title or "").strip()
+        # 去开头常见套话 / 段落标签
+        text = re.sub(r'^(abstract|introduction|summary|keywords?|motivation)\s*[:：]?\s*',
+                      '', text, flags=re.I)
         first = text.find(". ")
         if 0 < first < 200:
             second = text.find(". ", first + 2)
             if 0 < second < 320:
                 return text[:second + 1].strip()
             return text[:first + 1].strip()
+        if len(text) > 160:
+            return text[:160].rstrip() + "…"
         return text[:160].rstrip()
 
     # ----------------------------- 研究趋势 ---------------------------- #
@@ -461,12 +478,13 @@ class ReportGenerator:
         lines.append(f"**{_label('footer_by', lang)}**")
         lines.append("")
 
-        return "\n".join(lines)
+        return self._autospace_cjk_latin("\n".join(lines))
 
     # ----------------------------- 子渲染 ------------------------------ #
 
     def _render_title(self, field: str, time_range: str, lang: str) -> str:
-        """标题：bilingual 双语两行（§7）"""
+        """标题：bilingual 双语两行（§7）；英文 field 走 Title Case（ai→AI）"""
+        field = self._titlecase_en(field)
         prefix = f"{time_range} " if time_range else ""
         zh = f"# {prefix}{field} 报告"
         en = f"# {prefix}{field} Report"
@@ -498,9 +516,9 @@ class ReportGenerator:
         out.append(f"- **{_label('venue', lang)}**: {paper.venue}")
         out.append(f"- **{_label('citations', lang)}**: {paper.citation_count}")
         if paper.doi:
-            out.append(f"- **{_label('doi', lang)}**: {paper.doi}")
+            out.append(f"- **{_label('doi', lang)}**: `{paper.doi}`")
         if paper.url:
-            out.append(f"- **{_label('link', lang)}**: {paper.url}")
+            out.append(f"- **{_label('link', lang)}**: `{paper.url}`")
         out.append("")
 
         # 四要素（§5.2）：闭源标注 / 四段 / 全空回退 Abstract
@@ -559,8 +577,10 @@ class ReportGenerator:
     _C_HR = "#ecf0f1"        # 细分隔线
 
     def _pdf_styles(self) -> Dict[str, "ParagraphStyle"]:
-        """构建 PDF 段落样式集（全部 wordWrap=CJK，否则长中文行溢出右边距）"""
+        """构建 PDF 段落样式集（CJK 用 STSong，英文经 _format_inline_md 包 Times；
+        wordWrap=CJK 防长中文溢出；正文/引用两端对齐）。"""
         common = dict(fontName=PDF_FONT_NAME, wordWrap="CJK")
+        jcommon = dict(common, alignment=TA_JUSTIFY)   # 正文两端对齐
         return {
             "h1": ParagraphStyle("h1", **common, fontSize=22, leading=28,
                                  textColor=colors.HexColor(self._C_H1),
@@ -574,13 +594,13 @@ class ReportGenerator:
             "h4": ParagraphStyle("h4", **common, fontSize=13, leading=18,
                                  textColor=colors.HexColor(self._C_PRIMARY),
                                  spaceBefore=10, spaceAfter=4),
-            "body": ParagraphStyle("body", **common, fontSize=10.5, leading=16,
+            "body": ParagraphStyle("body", **jcommon, fontSize=10.5, leading=16,
                                    textColor=colors.HexColor(self._C_TEXT),
                                    spaceAfter=5),
             "meta": ParagraphStyle("meta", **common, fontSize=9, leading=13,
                                    textColor=colors.HexColor(self._C_META),
                                    spaceAfter=2),
-            "quote": ParagraphStyle("quote", **common, fontSize=9.5, leading=15,
+            "quote": ParagraphStyle("quote", **jcommon, fontSize=9.5, leading=15,
                                     textColor=colors.HexColor(self._C_QUOTE)),
             "bullet": ParagraphStyle("bullet", **common, fontSize=10.5,
                                      leading=16,
@@ -599,7 +619,8 @@ class ReportGenerator:
         """
         行内 Markdown → reportlab Paragraph mini-markup：先转义 &<>，再
         **bold** → <b>、*italic* → <i>、`code` → <font face=Courier>（粗体先于
-        斜体，确保 ** 被先消耗）。
+        斜体，确保 ** 被先消耗）；最后把拉丁连续串包进 Times（英文用西文字体，
+        使 <b> → Times-Bold 真粗体；CJK 仍走样式默认 STSong；Courier 等宽段不覆盖）。
         """
         if not text:
             return ""
@@ -608,13 +629,29 @@ class ReportGenerator:
         out = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
         out = re.sub(r"(?<!\*)\*([^*\n]+?)\*(?!\*)", r"<i>\1</i>", out)
         out = re.sub(r"`([^`]+?)`", r'<font face="Courier">\1</font>', out)
-        return out
+        # 拉丁串包 Times：按标签切分，只对纯文本段处理；Courier 等宽段内跳过
+        parts = re.split(r'(</?[a-zA-Z][^>]*>)', out)
+        in_code = False
+        latin_re = re.compile(r"[A-Za-z][A-Za-z0-9 ,.;:()'/-]*")
+        for k, seg in enumerate(parts):
+            if k % 2 == 1:                      # 标签 token
+                if seg.startswith('<font face="Courier"'):
+                    in_code = True
+                elif seg == '</font>':
+                    in_code = False
+                continue
+            if seg and not in_code:
+                parts[k] = latin_re.sub(
+                    lambda m: f'<font name="{LATIN_FONT_NAME}">{m.group(0)}</font>',
+                    seg)
+        return "".join(parts)
 
     @staticmethod
     def _titlecase_en(text: str) -> str:
         """
-        标题英文单词首字母大写；已知缩写（ai→AI、nlp→NLP、bert→BERT…）全大写；
-        已有大写的词（专名/缩写）原样保留；中文与标点不动。用于各级标题（H1-H4）。
+        标题英文：标准 Title Case——实词首字母大写，虚词（of/and/the/in/for/with/on/to/a/an…）
+        仅在首尾大写、其余小写；已知缩写（AI/NLP/BERT…）全大写；已有大写的专名保留；
+        中文与标点不动。用于各级标题（H1-H4）。
         """
         if not text:
             return text
@@ -627,19 +664,49 @@ class ReportGenerator:
             "ieee", "acm", "kdd", "aaai", "icml", "iclr", "cvpr", "iccv", "eccv",
             "acl", "emnlp", "naacl", "neurips",
         }
+        minor = {"a", "an", "the", "and", "but", "or", "for", "nor", "of", "in",
+                 "on", "at", "to", "by", "with", "from", "as", "into", "via", "per", "vs"}
+        words = text.split(" ")
+        n = len(words)
 
-        def cap(word: str) -> str:
+        def cap(idx: int, word: str) -> str:
             low = word.lower()
-            if low in acronyms:                # 已知缩写 → 全大写（ai→AI）
+            if low in acronyms:                       # 缩写 → 全大写
                 return low.upper()
-            if any(c.isupper() for c in word):  # 含大写 → 缩写/专名，保留
+            if low in minor and 0 < idx < n - 1:      # 非首尾虚词 → 小写
+                return low
+            if any(c.isupper() for c in word):        # 含大写 → 专名/缩写，保留
                 return word
-            for k, c in enumerate(word):        # 全小写 → 首字母大写（中文 upper 无变化）
+            for k, c in enumerate(word):              # 全小写 → 首字母大写（中文 upper 无变化）
                 if c.isalpha():
                     return word[:k] + c.upper() + word[k + 1:]
             return word
 
-        return " ".join(cap(w) for w in text.split(" "))
+        return " ".join(cap(i, w) for i, w in enumerate(words))
+
+    @staticmethod
+    def _autospace_cjk_latin(s: str) -> str:
+        """
+        在 CJK 与拉丁/数字之间自动补半角空格（pangu 风格），提升中英混排可读性。
+        先占位保护 URL（https?://…）与 DOI（10.xxxx/…）不被插入空格，最后还原。
+        """
+        if not s:
+            return s
+        stash: List[str] = []
+
+        def _keep(m):
+            stash.append(m.group(0))
+            return f"\x00{len(stash) - 1}\x00"
+
+        protected = re.sub(r'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+', _keep, s)
+        protected = re.sub(r'10\.\d{4,}/[A-Za-z0-9._/()-]+', _keep, protected)
+        protected = re.sub(r'([一-鿿])([A-Za-z0-9])', r'\1 \2', protected)
+        protected = re.sub(r'([A-Za-z0-9])([一-鿿])', r'\1 \2', protected)
+        # URL/DOI 与 CJK 边界补空格（占位符两侧）；替换串用真实 NUL 字符，避免 \x 转义
+        _NUL = "\x00"
+        protected = re.sub(r'([一-鿿])\x00', r'\1 ' + _NUL, protected)
+        protected = re.sub(r'\x00(\d+)\x00([一-鿿])', _NUL + r'\1' + _NUL + r' \2', protected)
+        return re.sub(r'\x00(\d+)\x00', lambda m: stash[int(m.group(1))], protected)
 
     def _barred(self, flowable, content_width: float,
                 bg: Optional[str] = None) -> "Table":
@@ -757,23 +824,23 @@ class ReportGenerator:
             m2 = re.match(r"^##\s+(.*)$", stripped)
             m1 = re.match(r"^#\s+(.*)$", stripped)
 
-            if m4:                       # 单篇论文标题（蓝色突出 + 首字母大写）
+            if m4:                       # 单篇论文标题（蓝色突出 + 首字母大写 + 英文加粗）
                 flush_all()
                 story.append(CondPageBreak(2.5 * cm))   # 避免标题孤悬页底
                 story.append(Paragraph(
-                    self._format_inline_md(self._titlecase_en(m4.group(1))),
+                    "<b>" + self._format_inline_md(self._titlecase_en(m4.group(1))) + "</b>",
                     styles["h4"]))
-            elif m3:                     # 热点 / 子小节标题（放大 + 首字母大写）
+            elif m3:                     # 热点 / 子小节标题（放大 + 首字母大写 + 英文加粗）
                 flush_all()
                 story.append(CondPageBreak(3.5 * cm))   # 标题+引言同页，避免标题后大片空白
                 story.append(Paragraph(
-                    self._format_inline_md(self._titlecase_en(m3.group(1))),
+                    "<b>" + self._format_inline_md(self._titlecase_en(m3.group(1))) + "</b>",
                     styles["h3"]))
-            elif m2:                     # 一级章节标题
+            elif m2:                     # 一级章节标题（英文加粗）
                 flush_all()
                 story.append(CondPageBreak(4 * cm))
                 story.append(self._barred(
-                    Paragraph(self._format_inline_md(self._titlecase_en(m2.group(1))),
+                    Paragraph("<b>" + self._format_inline_md(self._titlecase_en(m2.group(1))) + "</b>",
                               styles["h2"]), content_width))
             elif m1:                     # 报告标题（双语：英文在前、中文在后）
                 flush_all()
@@ -781,15 +848,15 @@ class ReportGenerator:
                 if j < n and re.match(r"^#\s+", lines[j].strip()):
                     second = re.match(r"^#\s+(.*)$",
                                       lines[j].strip()).group(1)
-                    # 先英文(second)后中文(m1)；英文单词首字母大写
-                    merged = (self._format_inline_md(self._titlecase_en(second))
+                    # 先英文(second)后中文(m1)；英文单词首字母大写；英文加粗
+                    merged = ("<b>" + self._format_inline_md(self._titlecase_en(second)) + "</b>"
                               + "<br/>"
-                              + self._format_inline_md(self._titlecase_en(m1.group(1))))
+                              + "<b>" + self._format_inline_md(self._titlecase_en(m1.group(1))) + "</b>")
                     story.append(Paragraph(merged, styles["h1"]))
                     i = j  # 跳过第二行（循环末尾再 +1）
                 else:
                     story.append(Paragraph(
-                        self._format_inline_md(self._titlecase_en(m1.group(1))),
+                        "<b>" + self._format_inline_md(self._titlecase_en(m1.group(1))) + "</b>",
                         styles["h1"]))
                 story.append(HRFlowable(width="100%", thickness=2,
                                         color=primary,

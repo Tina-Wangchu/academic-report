@@ -497,14 +497,25 @@ CN_EN_ACADEMIC = {
     "量子计算": "quantum computing", "边缘计算": "edge computing",
     "云计算": "cloud computing", "物联网": "internet of things",
     "5G": "5G", "6G": "6G",
+    "人工智能": "artificial intelligence", "智能": "intelligent",
+    "统计": "statistics", "综述": "review", "进展": "advances",
+    "最新": "recent", "近年": "recent", "研究": "research",
+    "应用": "application", "预测": "prediction", "检测": "detection",
+    "分析": "analysis", "方法": "method", "算法": "algorithm",
+    "模型": "model",
 }
 
 
 def _to_english_query(text: str) -> str:
-    """将查询中的中文术语翻译为英文（确保搜索始终用英文）。未知中文保留原样。"""
+    """将查询中的中文术语翻译为英文，并剥离剩余中文字符（未知术语/虚词），
+    确保搜索始终用英文查询（搜索语言 ≠ 报告语言，OpenAlex/S2 等才会返回英文论文）。
+    若译后为空（全为未知中文），回退原文本，避免空查询。"""
     for cn, en in CN_EN_ACADEMIC.items():
-        text = text.replace(cn, en)
-    return text.strip()
+        text = text.replace(cn, ' ' + en + ' ')
+    # 剩余 CJK 统一汉字替换为空格（保留词边界），再合并多余空白
+    stripped = ''.join(' ' if ('一' <= ch <= '鿿') else ch for ch in text)
+    stripped = ' '.join(stripped.split()).strip()
+    return stripped or text.strip()
 
 
 class PaperSearcher:

@@ -125,7 +125,11 @@ List[Paper] (+ intent)
 ### 5. PDF 转换 `_convert_to_pdf`
 
 - `_convert_to_pdf` 用 **reportlab Platypus** 把 MD 行向解析为 flowables（段落/标题/列表/分隔线等），逐行映射到 PDF 元素。
-- 中文走 reportlab 内置 CID 字体 **`STSong-Light`**（无需系统字体、无需额外字体文件）。
+- **字体分离**：中文走 reportlab 内置 CID 字体 **`STSong-Light`**；**英文/拉丁走内置 `Times-Roman`**（`_format_inline_md` 把拉丁连续串包 `<font name="Times-Roman">`，并注册 family 使 `<b>`→`Times-Bold`，英文可真加粗）。均无需系统字体、无需额外字体文件。
+- **中英混排**：`_render_markdown` 末尾统一过 `_autospace_cjk_latin`（CJK↔拉丁/数字间补半角空格，URL/DOI 占位保护+边界空格）。
+- **正文两端对齐**：body/quote 样式 `alignment=TA_JUSTIFY`。
+- **URL/DOI 等宽**：`_render_paper` 用反引号包 → `_format_inline_md` 渲染为 `<font face="Courier">`。
+- **英文标题**：`_titlecase_en`（标准 Title Case：虚词小写、缩写 AI/NLP/BERT 大写）；各级标题英文加粗（`<b>`→Times-Bold）。**中文真加粗需捆绑 Noto（+20MB），暂未引入**（见 `docs/known_issues.md`）。
 - 输出 PDF 字节流，由上层 `save_pdf` 落盘；`generate_report(output_format='pdf')` 与 `generate_both` 均走此路径。
 
 ### 6. 时间格式
@@ -142,7 +146,7 @@ List[Paper] (+ intent)
 | `intent.language` | 驱动双语模式（默认 bilingual） |
 | `intent.start_date`/`end_date` | 标题时间范围 + 涵盖时间 |
 | `intent.research_field`/`query` | 标题领域名 |
-| `reportlab` | MD→PDF 渲染（Platypus；中文用内置 CID 字体 `STSong-Light`） |
+| `reportlab` | MD→PDF 渲染（Platypus；中文 `STSong-Light` + 英文 `Times-Roman`，均内置字体） |
 | `paper_filter` / `paper_analyzer` | 聚类/介绍 + 分析/奠基论文（Option B） |
 
 ---
