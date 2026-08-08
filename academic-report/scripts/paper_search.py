@@ -577,7 +577,10 @@ class PaperSearcher:
         # 合并和去重
         unique_papers = self._deduplicate(all_papers)
 
-        logger.info(f"去重后: {len(unique_papers)} 篇论文")
+        # 权威学术源期望英文论文：过滤标题无任何拉丁字母的条目（如 OpenAlex 返回的纯中文标题）
+        unique_papers = [p for p in unique_papers
+                         if any(c.isascii() and c.isalpha() for c in (p.title or ""))]
+        logger.info(f"去重后: {len(unique_papers)} 篇论文（已过滤纯非英文标题）")
 
         return unique_papers
 
