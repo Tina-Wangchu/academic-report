@@ -53,7 +53,7 @@ def run_pipeline(user_input: str,
                  output_dir: Optional[str] = None) -> dict:
     """
     端到端跑全链路，返回各阶段指标。
-    所有默认值来自 config/.env（config_manager）；调用参数为 None 时回退到 .env。
+    所有默认值来自 assets/.env（config_manager）；调用参数为 None 时回退到 .env。
     """
     t0 = datetime.now()
     metrics = {"user_input": user_input}

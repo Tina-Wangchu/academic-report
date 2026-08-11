@@ -2,10 +2,10 @@
 配置管理器
 通用配置与环境变量管理（平台无关，单一路径）
 
-唯一配置来源：academic-report/config/.env（由 .env.example 复制而来）。
+唯一配置来源：academic-report/assets/.env（由 .env.example 复制而来）。
 配置查找优先级（从高到低）：
   1. 真实环境变量（os.environ，最高优先级，便于 CI/容器临时覆盖）
-  2. config/.env 文件（用户配置，唯一持久化来源）
+  2. assets/.env 文件（用户配置，唯一持久化来源）
   3. 代码内默认值（各 getter 的 default 参数）
 
 不读取 ~/.hermes/ 或任何其它路径。
@@ -26,7 +26,7 @@ class ConfigManager:
     """配置管理器（平台无关，单一路径）"""
 
     def __init__(self):
-        """初始化配置管理器：定位 config/.env（唯一配置来源）与可选的 config/config.yaml。"""
+        """初始化配置管理器：定位 assets/.env（唯一配置来源）与可选的 assets/config.yaml。"""
         data_dir = get_skill_data_dir()
         self.env_path = data_dir / '.env'             # 唯一配置来源
         self.config_path = data_dir / 'config.yaml'   # 可选：非敏感默认值
@@ -35,7 +35,7 @@ class ConfigManager:
 
     def _load_env_file(self):
         """
-        加载 config/.env 到 os.environ（不覆盖已存在的环境变量）。
+        加载 assets/.env 到 os.environ（不覆盖已存在的环境变量）。
         SMTP_* / LLM_* 等密钥写在 .env 里即可被各 getter 读到，无需手动 export；
         真实环境变量优先级仍高于 .env 文件。
         """

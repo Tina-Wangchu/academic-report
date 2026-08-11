@@ -111,7 +111,7 @@ def get_skill_dir() -> Path:
 
 def get_skill_data_dir() -> Path:
     """
-    获取 skill 配置/数据目录（唯一路径：项目内 academic-report/config/）。
+    获取 skill 配置/数据目录（唯一路径：项目内 academic-report/assets/）。
 
     所有配置与运行期数据统一存放于此（不读取任何其它路径）：
       - .env                              用户配置（唯一配置来源，由 .env.example 复制而来）
@@ -121,16 +121,16 @@ def get_skill_data_dir() -> Path:
 
     目录可能尚不存在，由调用方按需 mkdir(parents=True)。
     """
-    return get_skill_dir() / 'config'
+    return get_skill_dir() / 'assets'
 
 
 def get_config_path() -> Path:
-    """获取配置文件路径（唯一路径：config/config.yaml）"""
+    """获取配置文件路径（唯一路径：assets/config.yaml）"""
     return get_skill_data_dir() / 'config.yaml'
 
 
 def get_timestamp_file_path() -> Path:
-    """获取时间戳文件路径（唯一路径：config/academic_scholar_timestamps.json）"""
+    """获取时间戳文件路径（唯一路径：assets/academic_scholar_timestamps.json）"""
     return get_skill_data_dir() / 'academic_scholar_timestamps.json'
 
 

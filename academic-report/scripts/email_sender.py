@@ -11,7 +11,7 @@
     3. 本地 SOCKS 端口探测 —— 懒探测 127.0.0.1:{7897,7890,1080,...}（Clash 等本地代理）
   认证错误与代理无关，任一策略命中即立刻判定（不重试）。
 
-- 配置来自 config_manager（SMTP_HOST/PORT/USER/PASSWORD 取自 config/.env；
+- 配置来自 config_manager（SMTP_HOST/PORT/USER/PASSWORD 取自 assets/.env；
   收件人取自 config.email_recipient，缺省回退到 SMTP_USER）。
 - 端口 465 → SMTP_SSL（隐式 SSL）；端口 587/其它 → SMTP + STARTTLS。
 - 发送失败（非认证错误）按指数退避重试，认证错误立即失败。
@@ -51,7 +51,7 @@ _PTYPE_NAME = {1: "socks4", 2: "socks5", 3: "http"}
 # 本地常见 SOCKS 代理端口（Clash/V2Ray 等），用于兜底探测
 _LOCAL_SOCKS_PORTS = (7897, 7890, 1080, 10808, 10809)
 
-# 运行期数据目录（唯一路径：academic-report/config/，与 .env 同目录）。
+# 运行期数据目录（唯一路径：academic-report/assets/，与 .env 同目录）。
 # 发送日志、冷却状态、LLM 缓存等运行期文件统一存放于此。
 _DATA_DIR = get_skill_data_dir()
 

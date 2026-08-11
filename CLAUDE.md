@@ -62,7 +62,7 @@ Academic Report 是一个**平台无关的 AI Agent 技能**（可用于 Claude�
 
 **已完成模块** ✅：
 - `utils.py` - 数据模型（`Paper`、`SearchIntent`）和工具函数（APA 引用、日期解析、`schedule_interval`）
-- `config_manager.py` - 统一配置管理（**唯一配置来源 `academic-report/config/.env`**，由 `.env.example` 复制；getter 优先读环境变量）
+- `config_manager.py` - 统一配置管理（**唯一配置来源 `academic-report/assets/.env`**，由 `.env.example` 复制；getter 优先读环境变量）
 - `rate_limiter.py` - 多数据源的 API 限流处理器（已接入 arXiv/Semantic Scholar/OpenAlex；CrossRef/PubMed 已配置限流但 Searcher 暂未接入）
 - `intent_parser.py` - 自然语言解析器，提取搜索参数 + **调度检测**（`is_scheduled`/`schedule`）
 - `paper_search.py` - 多源论文搜索器（arXiv、Semantic Scholar、OpenAlex；日期过滤）
@@ -86,12 +86,12 @@ Academic Report 是一个**平台无关的 AI Agent 技能**（可用于 Claude�
 - `Paper`（dataclass）- 具有分析字段的核心论文元数据
 - `SearchIntent`（dataclass）- 解析的用户搜索参数
 
-**配置层次**（唯一配置文件 `academic-report/config/.env`）：
+**配置层次**（唯一配置文件 `academic-report/assets/.env`）：
 1. 真实环境变量（`os.environ`，优先级最高，便于 CI/容器临时覆盖）
 2. `.env` 文件（用户配置：密钥 + 非敏感参数，由 `.env.example` 复制而来）
 3. 代码默认值（各 getter 的 default 参数兜底）
 
-> 不读取 `~/.hermes/` 或任何其它路径。全部可用配置项见 `academic-report/config/.env.example`。
+> 不读取 `~/.hermes/` 或任何其它路径。全部可用配置项见 `academic-report/assets/.env.example`。
 
 ## 必要配置
 
@@ -105,12 +105,12 @@ cd academic-report
 pip install -r requirements.txt
 
 # 2. 配置：复制模板并填入你自己的值（.env 是本工程唯一配置来源）
-cp config/.env.example config/.env
-# 然后编辑 config/.env，至少填写 SMTP_* 四项（邮件功能必需）：
+cp assets/.env.example assets/.env
+# 然后编辑 assets/.env，至少填写 SMTP_* 四项（邮件功能必需）：
 #   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD
 ```
 
-`.env` 中其余配置（LLM 分析、报告参数、代理）均为可选，详见 `academic-report/config/.env.example` 内的分组注释。
+`.env` 中其余配置（LLM 分析、报告参数、代理）均为可选，详见 `academic-report/assets/.env.example` 内的分组注释。
 
 ### Gmail 应用密码
 

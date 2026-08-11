@@ -22,7 +22,7 @@ license: MIT
 
 1. **Python 3.8+**
 2. **Python 依赖**：在 `academic-report/` 目录执行 `pip install -r requirements.txt`
-3. **配置文件**：`academic-report/config/.env` 已就绪（由 `.env.example` 复制并填值）
+3. **配置文件**：`academic-report/assets/.env` 已就绪（由 `.env.example` 复制并填值）
    - `SMTP_*` 四项——**必需**（否则无法发邮件）
    - `LLM_*`——推荐（四要素深度分析；未配置则自动回退规则抽取，不报错）
 4. **网络**：能访问 arXiv / Semantic Scholar / OpenAlex；SMTP 出站可达
@@ -52,12 +52,12 @@ python scripts/pipeline.py "<用户的检索请求原话>" --recipient <用户�
 **你的职责**：运行命令 → 把脚本 stdout（`[1/6]…[6/6]` 各阶段 + 「发送到 …: 成功/失败」）**原样**贴给用户。
 **不要**自己生成报告，**不要**自己发邮件。
 
-**可选参数**（默认值均来自 `config/.env`，无需显式传）：
+**可选参数**（默认值均来自 `assets/.env`，无需显式传）：
 `--language zh|en|bilingual`、`--time 3y|1y|1w|all`、`--max-results N`、`--format markdown|pdf`、`--no-email`（只生成不发送）、`--output-dir <目录>`。
 
 ## 配置
 
-唯一配置来源：`academic-report/config/.env`（不入 git；模板 `.env.example` 入 git）。
+唯一配置来源：`academic-report/assets/.env`（不入 git；模板 `.env.example` 入 git）。
 
 加载优先级：`真实环境变量（export）> .env 文件 > 代码默认值`。完整配置项见 `.env.example`，分 5 组：
 

@@ -12,7 +12,7 @@ test/experiments/__pycache__/
 test-report/*
 !test-report/run_modules.py
 
-# 运行期数据（生成在 academic-report/config/ 下，与 .env 同目录）
+# 运行期数据（生成在 academic-report/assets/ 下，与 .env 同目录）
 # .env 是用户唯一配置，必须忽略；.env.example 是模板，必须保留
 *.env
 .env

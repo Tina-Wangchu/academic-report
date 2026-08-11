@@ -81,10 +81,10 @@ pip install -r academic-report/requirements.txt
 
 ### 2. Configure / 配置
 
-`academic-report/config/.env` is the **single** config source — copy it from `.env.example`. Only SMTP is required. / `academic-report/config/.env` 为**唯一**配置来源（由 `.env.example` 复制）；仅 SMTP 必填。
+`academic-report/assets/.env` is the **single** config source — copy it from `.env.example`. Only SMTP is required. / `academic-report/assets/.env` 为**唯一**配置来源（由 `.env.example` 复制）；仅 SMTP 必填。
 
 ```bash
-cp academic-report/config/.env.example academic-report/config/.env
+cp academic-report/assets/.env.example academic-report/assets/.env
 ```
 
 ```bash
@@ -127,16 +127,16 @@ Or invoke the `academic-report` skill from your AI Agent with the same natural-l
 ## 📂 Project Structure / 项目结构
 
 ```
-academic-report/                 ← repo root (dev workspace) / 仓库根（开发工作区）
-├── academic-report/             ← ★ the skill (deployable unit) / ★ 技能本体（部署单元）
-│   ├── SKILL.md                #   skill definition / 技能定义
-│   ├── requirements.txt
-│   ├── scripts/                #   core modules / 核心模块
-│   ├── config/                 #   .env (single config source) / 配置
-│   └── templates/              #   report templates / 报告模板
-├── docs/  details/             # design docs & implementation details / 设计文档与实现细节
-├── examples/                   # sample reports / 报告样本
-└── test/  test-report/         # tests & run records / 测试与运行记录
+academic-report/                      ← repo root (dev workspace) / 仓库根（开发工作区）
+├── academic-report/                  ← ★ the skill (deployable unit) / ★ 技能本体（部署单元）
+│   ├── SKILL.md                     #   skill definition / 技能定义
+│   ├── requirements.txt             #   Python deps / Python 依赖
+│   ├── scripts/                     #   core modules (pipeline + 10 modules) / 核心模块
+│   ├── assets/                      #   .env + .env.example + runtime data (logs, cache) / 配置 + 运行期数据
+│   └── reports/                     #   generated reports, timestamped dirs / 生成的报告（按时间戳）
+├── docs/  details/                  # design docs & implementation details / 设计文档与实现细节
+├── examples/                        # sample reports (.md / .pdf) / 报告样本
+└── test/  test-report/              # tests & run records / 测试与运行记录
 ```
 
 > **Deploy**: copy the inner `academic-report/` directory into your agent's skill folder. / **部署**：把内层 `academic-report/` 整个拷进你 Agent 的 skill 目录即可。
