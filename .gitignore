@@ -31,6 +31,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+# Office 临时锁文件（Word/PPT 打开时生成的 ~$ 前缀文件）
+~$*
 .idea/
 .vscode/
 *.tmp
